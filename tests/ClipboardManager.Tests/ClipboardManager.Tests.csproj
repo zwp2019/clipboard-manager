@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ClipboardManager.Tests</RootNamespace>
+    <AssemblyName>ClipboardManager.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <ProjectReference Include="..\..\src\ClipboardManager.Domain\ClipboardManager.Domain.csproj" />
+    <ProjectReference Include="..\..\src\ClipboardManager.Contracts\ClipboardManager.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\ClipboardManager.Application\ClipboardManager.Application.csproj" />
+    <ProjectReference Include="..\..\src\ClipboardManager.Data\ClipboardManager.Data.csproj" />
+  </ItemGroup>
+</Project>

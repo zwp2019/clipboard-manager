@@ -1,0 +1,15 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+*.suo
+TestResults/
+artifacts/
+*.db
+*.db-wal
+*.db-shm
+*.log
+*.vshost.exe
+*.tmp
+.DS_Store

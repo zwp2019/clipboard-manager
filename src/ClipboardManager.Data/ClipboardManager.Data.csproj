@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ClipboardManager.Data</RootNamespace>
+    <AssemblyName>ClipboardManager.Data</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <ProjectReference Include="..\ClipboardManager.Domain\ClipboardManager.Domain.csproj" />
+    <ProjectReference Include="..\ClipboardManager.Contracts\ClipboardManager.Contracts.csproj" />
+  </ItemGroup>
+</Project>
