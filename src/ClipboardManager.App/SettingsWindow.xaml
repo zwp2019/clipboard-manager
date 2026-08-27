@@ -5,7 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Title="Clipboard Manager Settings">
+    Title="剪贴板管理器 设置">
 
     <Grid Background="{ThemeResource LayerFillColorDefaultBrush}">
         <Grid.RowDefinitions>
@@ -16,7 +16,7 @@
 
         <TextBlock
             Grid.Row="0"
-            Text="Settings"
+            Text="设置"
             Style="{StaticResource TitleTextBlockStyle}"
             Margin="24,20,24,8" />
 
@@ -25,7 +25,7 @@
 
                 <!-- 全局热键（规范 §28） -->
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Global Hotkey" FontWeight="SemiBold" />
+                    <TextBlock Text="全局热键" FontWeight="SemiBold" />
                     <TextBox
                         x:Name="HotkeyBox"
                         Text="{x:Bind ViewModel.Hotkey, Mode=TwoWay}"
@@ -39,41 +39,41 @@
 
                 <!-- 主题（规范 §47） -->
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Theme" FontWeight="SemiBold" />
+                    <TextBlock Text="主题" FontWeight="SemiBold" />
                     <ComboBox
                         SelectedIndex="{x:Bind ViewModel.ThemeIndex, Mode=TwoWay}"
                         HorizontalAlignment="Left" MinWidth="200">
-                        <ComboBoxItem Content="System" />
-                        <ComboBoxItem Content="Light" />
-                        <ComboBoxItem Content="Dark" />
+                        <ComboBoxItem Content="跟随系统" />
+                        <ComboBoxItem Content="浅色" />
+                        <ComboBoxItem Content="深色" />
                     </ComboBox>
                 </StackPanel>
 
                 <!-- 历史保留（规范 §40） -->
                 <StackPanel Spacing="6">
-                    <TextBlock Text="History Retention" FontWeight="SemiBold" />
+                    <TextBlock Text="历史保留" FontWeight="SemiBold" />
                     <ComboBox
                         SelectedValue="{x:Bind ViewModel.RetentionDays, Mode=TwoWay}"
                         SelectedValuePath="Tag"
                         HorizontalAlignment="Left" MinWidth="200">
-                        <ComboBoxItem Content="1 day" Tag="1" />
-                        <ComboBoxItem Content="7 days" Tag="7" />
-                        <ComboBoxItem Content="30 days" Tag="30" />
-                        <ComboBoxItem Content="90 days" Tag="90" />
-                        <ComboBoxItem Content="Forever" Tag="0" />
+                        <ComboBoxItem Content="1 天" Tag="1" />
+                        <ComboBoxItem Content="7 天" Tag="7" />
+                        <ComboBoxItem Content="30 天" Tag="30" />
+                        <ComboBoxItem Content="90 天" Tag="90" />
+                        <ComboBoxItem Content="永久" Tag="0" />
                     </ComboBox>
                 </StackPanel>
 
                 <!-- 去重（规范 §15） -->
                 <ToggleSwitch
-                    Header="Duplicate Handling"
-                    OnContent="Deduplicate"
-                    OffContent="Keep duplicates"
+                    Header="重复处理"
+                    OnContent="自动去重"
+                    OffContent="保留重复"
                     IsOn="{x:Bind ViewModel.EnableDeduplication, Mode=TwoWay}" />
 
                 <!-- 最大历史（规范 §46） -->
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Maximum History Items" FontWeight="SemiBold" />
+                    <TextBlock Text="最大历史条数" FontWeight="SemiBold" />
                     <NumberBox
                         Value="{x:Bind ViewModel.MaxHistoryItems, Mode=TwoWay}"
                         Minimum="100"
@@ -84,28 +84,28 @@
 
                 <!-- 图片压缩（规范 §46） -->
                 <ToggleSwitch
-                    Header="Image Compression"
-                    OnContent="Enabled"
-                    OffContent="Disabled"
+                    Header="图片压缩"
+                    OnContent="开启"
+                    OffContent="关闭"
                     IsOn="{x:Bind ViewModel.ImageCompression, Mode=TwoWay}" />
 
                 <!-- 暂停监控 -->
                 <ToggleSwitch
-                    Header="Pause Monitoring"
-                    OnContent="Paused"
-                    OffContent="Monitoring"
+                    Header="暂停监控"
+                    OnContent="已暂停"
+                    OffContent="监控中"
                     IsOn="{x:Bind ViewModel.PauseMonitoring, Mode=TwoWay}" />
 
                 <!-- 开机自启（规范 §32） -->
                 <ToggleSwitch
-                    Header="Start With Windows"
-                    OnContent="Enabled"
-                    OffContent="Disabled"
+                    Header="开机自启"
+                    OnContent="开启"
+                    OffContent="关闭"
                     IsOn="{x:Bind ViewModel.AutoStart, Mode=TwoWay}" />
 
                 <!-- 排除应用：隐私保护（规范 §39） -->
                 <StackPanel Spacing="6">
-                    <TextBlock Text="Excluded Applications" FontWeight="SemiBold" />
+                    <TextBlock Text="排除应用" FontWeight="SemiBold" />
                     <TextBlock
                         Text="来自这些应用的复制内容不会被记录（如密码管理器、银行软件）。"
                         FontSize="12"
@@ -116,8 +116,8 @@
                             x:Name="ExcludeAppBox"
                             PlaceholderText="应用名（如 1Password）"
                             Width="260" />
-                        <Button Content="Add" Click="AddExcludedApp_Click" />
-                        <Button Content="Add Current App" Click="AddCurrentApp_Click" />
+                        <Button Content="添加" Click="AddExcludedApp_Click" />
+                        <Button Content="添加当前应用" Click="AddCurrentApp_Click" />
                     </StackPanel>
                     <ListView
                         ItemsSource="{x:Bind ViewModel.ExcludedApplications, Mode=OneWay}"
@@ -133,7 +133,7 @@
                                     <TextBlock Grid.Column="0" Text="{x:Bind}" VerticalAlignment="Center" />
                                     <Button
                                         Grid.Column="1"
-                                        Content="Remove"
+                                        Content="移除"
                                         Click="RemoveExcludedApp_Click" />
                                 </Grid>
                             </DataTemplate>
@@ -143,11 +143,11 @@
 
                 <!-- 数据管理（规范 §46） -->
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Data Management" FontWeight="SemiBold" />
+                    <TextBlock Text="数据管理" FontWeight="SemiBold" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Backup Database" Click="BackupButton_Click" />
-                        <Button Content="Restore Database" Click="RestoreButton_Click" />
-                        <Button Content="Clear History" Click="ClearHistoryButton_Click" />
+                        <Button Content="备份数据库" Click="BackupButton_Click" />
+                        <Button Content="恢复数据库" Click="RestoreButton_Click" />
+                        <Button Content="清空历史" Click="ClearHistoryButton_Click" />
                     </StackPanel>
                 </StackPanel>
             </StackPanel>
@@ -159,8 +159,8 @@
             HorizontalAlignment="Right"
             Spacing="8"
             Margin="24,12,24,20">
-            <Button Content="Cancel" Click="CancelButton_Click" />
-            <Button Content="Save" Style="{StaticResource AccentButtonStyle}" Click="SaveButton_Click" />
+            <Button Content="取消" Click="CancelButton_Click" />
+            <Button Content="保存" Style="{StaticResource AccentButtonStyle}" Click="SaveButton_Click" />
         </StackPanel>
     </Grid>
 </Window>

@@ -37,6 +37,15 @@ public static class ProcessHelper
     /// </summary>
     public static string? GetProcessName(nint windowHandle)
     {
+        var path = GetProcessImagePath(windowHandle);
+        return path is null ? null : Path.GetFileNameWithoutExtension(path);
+    }
+
+    /// <summary>
+    /// 获取窗口所属进程的可执行文件完整路径。用于来源应用图标提取（Icon.ExtractAssociatedIcon）。
+    /// </summary>
+    public static string? GetProcessImagePath(nint windowHandle)
+    {
         if (windowHandle == nint.Zero)
         {
             return null;
@@ -58,7 +67,7 @@ public static class ProcessHelper
             var buffer = new char[1024];
             var size = (uint)buffer.Length;
             return NativeMethods.QueryFullProcessImageNameW(process, 0, buffer, ref size)
-                ? Path.GetFileNameWithoutExtension(new string(buffer, 0, (int)size))
+                ? new string(buffer, 0, (int)size)
                 : null;
         }
         finally

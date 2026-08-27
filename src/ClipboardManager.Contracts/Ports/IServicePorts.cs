@@ -19,9 +19,21 @@ public interface IHistoryService
 
     Task<IReadOnlyList<ClipboardItem>> GetFavoritesAsync(int offset, int limit, CancellationToken ct);
 
+    /// <summary>按类型查询最近条目（Dock 标签切换）。</summary>
+    Task<IReadOnlyList<ClipboardItem>> GetByTypeAsync(ClipboardType type, int offset, int limit, CancellationToken ct);
+
+    /// <summary>查询指定自定义分组的条目（标签栏动态标签，规范 §33）。</summary>
+    Task<IReadOnlyList<ClipboardItem>> GetByGroupAsync(string group, int offset, int limit, CancellationToken ct);
+
     Task<ClipboardItem?> GetByIdAsync(long id, CancellationToken ct);
 
     Task SetFavoriteAsync(long id, bool favorite, CancellationToken ct);
+
+    /// <summary>设置/移除条目的自定义分组（规范 §33）。</summary>
+    Task SetGroupAsync(long id, string? group, CancellationToken ct);
+
+    /// <summary>全部现有分组名称（去重）。</summary>
+    Task<IReadOnlyList<string>> GetGroupNamesAsync(CancellationToken ct);
 
     Task DeleteAsync(long id, CancellationToken ct);
 

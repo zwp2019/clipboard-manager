@@ -14,7 +14,7 @@ namespace ClipboardManager.App;
 /// 应用入口：DI 组装、单实例、启动服务、托盘与热键接线（规范 §33、§31、§28）。
 /// 启动阶段只做：初始化、注册热键、启动监听、创建窗口（规范 §33）。
 /// </summary>
-public partial class App : Application
+public partial class App : Microsoft.UI.Xaml.Application
 {
     private const string SingleInstanceMutexName = "Local\\ClipboardManager.SingleInstance";
 
@@ -106,7 +106,10 @@ public partial class App : Application
 
             _quickPaste = _services.GetRequiredService<IQuickPasteService>();
 
+            // 启动即以底部横幅形态显示（Paste 风格 Dock 栏）。
+            _mainWindow.PositionNearCursor();
             _mainWindow.Activate();
+            _ = _mainWindow.ViewModel.RefreshAsync();
             RootElement = _mainWindow.Content as FrameworkElement;
 
             _logger.LogInformation("Clipboard Manager started");
@@ -208,9 +211,16 @@ public partial class App : Application
             return;
         }
 
+        // 快捷键切换：已显示时再次按下则隐藏（规范 §29）。
+        if (_mainWindow.IsVisible)
+        {
+            HideLauncher();
+            return;
+        }
+
         _previousForegroundWindow = ProcessHelper.GetForegroundWindow();
         _mainWindow.ViewModel.SetPasteTarget(_previousForegroundWindow);
-        _mainWindow.PositionOnCursorMonitor();
+        _mainWindow.PositionNearCursor();
         _mainWindow.ShowWindow();
         _ = _mainWindow.ViewModel.RefreshAsync();
     }

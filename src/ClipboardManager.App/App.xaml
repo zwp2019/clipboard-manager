@@ -7,6 +7,190 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- ============================================================ -->
+            <!--  Design Tokens（规范 §36、§55）                              -->
+            <!--  Paste 风格：中性深色背景 + 类型彩色识别条 + 克制留白         -->
+            <!-- ============================================================ -->
+
+            <!-- 色板：基础 -->
+            <Color x:Key="ColorBackgroundColor">#1C1C1E</Color>
+            <Color x:Key="ColorSurfaceColor">#2C2C2E</Color>
+            <Color x:Key="ColorSurfaceHoverColor">#3A3A3C</Color>
+            <Color x:Key="ColorSurfaceSelectedColor">#48484A</Color>
+            <Color x:Key="ColorBorderColor">#3F3F41</Color>
+
+            <!-- 色板：文本 -->
+            <Color x:Key="ColorTextPrimaryColor">#F5F5F7</Color>
+            <Color x:Key="ColorTextSecondaryColor">#AEAEB2</Color>
+            <Color x:Key="ColorTextTertiaryColor">#8E8E93</Color>
+
+            <!-- 色板：强调 -->
+            <Color x:Key="ColorAccentColor">#FF9F0A</Color>
+            <Color x:Key="ColorAccentSoftColor">#3A2E1A</Color>
+
+            <!-- 色板：类型识别色（Paste 风格彩色顶部条） -->
+            <Color x:Key="TypeTextColor">#8E8E93</Color>
+            <Color x:Key="TypeUrlColor">#0A84FF</Color>
+            <Color x:Key="TypeCodeColor">#BF5AF2</Color>
+            <Color x:Key="TypeImageColor">#FF375F</Color>
+            <Color x:Key="TypeFileColor">#30D158</Color>
+            <Color x:Key="TypeHtmlColor">#FF9F0A</Color>
+            <Color x:Key="TypeRtfColor">#64D2FF</Color>
+
+            <!-- SolidColorBrush 便于 XAML 绑定 -->
+            <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource ColorBackgroundColor}" />
+            <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource ColorSurfaceColor}" />
+            <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource ColorSurfaceHoverColor}" />
+            <SolidColorBrush x:Key="SurfaceSelectedBrush" Color="{StaticResource ColorSurfaceSelectedColor}" />
+            <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource ColorBorderColor}" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource ColorTextPrimaryColor}" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource ColorTextSecondaryColor}" />
+            <SolidColorBrush x:Key="TextTertiaryBrush" Color="{StaticResource ColorTextTertiaryColor}" />
+            <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource ColorAccentColor}" />
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource ColorAccentSoftColor}" />
+
+            <!-- TextBox 深色化：覆盖聚焦/悬停时的浅色系统主题资源（修复搜索框聚焦变白） -->
+            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource ColorSurfaceColor}" />
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource ColorSurfaceColor}" />
+            <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
+            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{StaticResource ColorTextPrimaryColor}" />
+            <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="{StaticResource ColorTextTertiaryColor}" />
+            <SolidColorBrush x:Key="TextControlButtonForeground" Color="{StaticResource ColorTextTertiaryColor}" />
+            <SolidColorBrush x:Key="TextControlButtonForegroundPointerOver" Color="{StaticResource ColorTextPrimaryColor}" />
+
+            <!-- 类型画笔 -->
+            <SolidColorBrush x:Key="TypeTextBrush" Color="{StaticResource TypeTextColor}" />
+            <SolidColorBrush x:Key="TypeUrlBrush" Color="{StaticResource TypeUrlColor}" />
+            <SolidColorBrush x:Key="TypeCodeBrush" Color="{StaticResource TypeCodeColor}" />
+            <SolidColorBrush x:Key="TypeImageBrush" Color="{StaticResource TypeImageColor}" />
+            <SolidColorBrush x:Key="TypeFileBrush" Color="{StaticResource TypeFileColor}" />
+            <SolidColorBrush x:Key="TypeHtmlBrush" Color="{StaticResource TypeHtmlColor}" />
+            <SolidColorBrush x:Key="TypeRtfBrush" Color="{StaticResource TypeRtfColor}" />
+
+            <!-- 圆角（规范 §39） -->
+            <CornerRadius x:Key="CornerRadiusWindow">18</CornerRadius>
+            <CornerRadius x:Key="CornerRadiusCard">14</CornerRadius>
+            <CornerRadius x:Key="CornerRadiusButton">8</CornerRadius>
+            <CornerRadius x:Key="CornerRadiusPill">16</CornerRadius>
+
+            <!-- 字体（规范 §37） -->
+            <FontFamily x:Key="FontFamilyUi">Segoe UI Variable, Microsoft YaHei UI</FontFamily>
+            <FontFamily x:Key="FontFamilyMono">Cascadia Code, Consolas</FontFamily>
+
+            <!-- 字号（规范 §38） -->
+            <x:Double x:Key="FontSizeCaption">11</x:Double>
+            <x:Double x:Key="FontSizeSecondary">12</x:Double>
+            <x:Double x:Key="FontSizeBody">13</x:Double>
+            <x:Double x:Key="FontSizeTitle">20</x:Double>
+
+            <!-- 卡片尺寸 -->
+            <x:Double x:Key="CardWidth">220</x:Double>
+            <x:Double x:Key="CardHeight">180</x:Double>
+            <x:Double x:Key="CardHeaderHeight">6</x:Double>
+
+            <!-- 半透明悬停叠加（规范 §15：轻微背景变化） -->
+            <SolidColorBrush x:Key="HoverOverlayBrush" Color="#14FFFFFF" />
+
+            <!-- 底部 Dock 卡片项：无默认边距，内容撑满；模板提供 Hover / Selected 视觉状态（规范 §15、§16、§59） -->
+            <Style x:Key="DockCardItemStyle" TargetType="ListViewItem">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusCard}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Grid RenderTransformOrigin="0.5,0.5">
+                                <Grid.RenderTransform>
+                                    <ScaleTransform x:Name="PressScale" ScaleX="1" ScaleY="1" />
+                                </Grid.RenderTransform>
+                                <!-- 卡片底色与描边 -->
+                                <Border
+                                    x:Name="ItemBackground"
+                                    CornerRadius="{StaticResource CornerRadiusCard}"
+                                    Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1" />
+                                <!-- 悬停叠加层 -->
+                                <Border
+                                    x:Name="HoverBackground"
+                                    CornerRadius="{StaticResource CornerRadiusCard}"
+                                    Background="{StaticResource HoverOverlayBrush}"
+                                    Opacity="0" />
+                                <ContentPresenter
+                                    Content="{TemplateBinding Content}"
+                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch" />
+                                <!-- 选中指示边框（强调色，规范 §16） -->
+                                <Border
+                                    x:Name="SelectedBorder"
+                                    CornerRadius="{StaticResource CornerRadiusCard}"
+                                    BorderBrush="{StaticResource AccentBrush}"
+                                    BorderThickness="2"
+                                    Opacity="0" />
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="HoverBackground"
+                                                    Storyboard.TargetProperty="Opacity"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="Selected">
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="SelectedBorder"
+                                                    Storyboard.TargetProperty="Opacity"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                            </Storyboard>
+                                        </VisualState>
+                                        <VisualState x:Name="PointerOverSelected">
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="HoverBackground"
+                                                    Storyboard.TargetProperty="Opacity"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="SelectedBorder"
+                                                    Storyboard.TargetProperty="Opacity"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                            </Storyboard>
+                                        </VisualState>
+                                        <!-- 按压：轻微缩放反馈（规范 §16） -->
+                                        <VisualState x:Name="Pressed">
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleX"
+                                                    To="0.98"
+                                                    Duration="0:0:0.08" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleY"
+                                                    To="0.98"
+                                                    Duration="0:0:0.08" />
+                                            </Storyboard>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

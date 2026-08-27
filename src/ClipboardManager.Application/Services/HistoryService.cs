@@ -21,11 +21,23 @@ public sealed class HistoryService : IHistoryService
     public Task<IReadOnlyList<ClipboardItem>> GetFavoritesAsync(int offset, int limit, CancellationToken ct)
         => _repository.GetFavoritesAsync(offset, limit, ct);
 
+    public Task<IReadOnlyList<ClipboardItem>> GetByTypeAsync(ClipboardType type, int offset, int limit, CancellationToken ct)
+        => _repository.GetByTypeAsync(type, offset, limit, ct);
+
+    public Task<IReadOnlyList<ClipboardItem>> GetByGroupAsync(string group, int offset, int limit, CancellationToken ct)
+        => _repository.GetByGroupAsync(group, offset, limit, ct);
+
     public Task<ClipboardItem?> GetByIdAsync(long id, CancellationToken ct)
         => _repository.GetByIdAsync(id, ct);
 
     public Task SetFavoriteAsync(long id, bool favorite, CancellationToken ct)
         => _repository.SetFavoriteAsync(id, favorite, ct);
+
+    public Task SetGroupAsync(long id, string? group, CancellationToken ct)
+        => _repository.SetGroupAsync(id, group, ct);
+
+    public Task<IReadOnlyList<string>> GetGroupNamesAsync(CancellationToken ct)
+        => _repository.GetGroupNamesAsync(ct);
 
     public Task DeleteAsync(long id, CancellationToken ct)
         => _repository.DeleteAsync(id, ct);

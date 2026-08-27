@@ -85,10 +85,10 @@ public sealed class ClipboardPipelineService : IDisposable
             return;
         }
 
-        _ = Task.Run(() => ProcessAsync(e.OperationId, _cts?.Token ?? CancellationToken.None));
+        _ = Task.Run(() => ProcessAsync(e, _cts?.Token ?? CancellationToken.None));
     }
 
-    private async Task ProcessAsync(string operationId, CancellationToken ct)
+    private async Task ProcessAsync(ClipboardChangedEventArgs args, CancellationToken ct)
     {
         // 串行化处理，避免高频复制导致并发写库。
         await _gate.WaitAsync(ct);
@@ -106,12 +106,25 @@ public sealed class ClipboardPipelineService : IDisposable
                 return;
             }
 
-            // 敏感应用排除（规范 §39）：来源应用命中排除列表则不入库。
-            if (!string.IsNullOrEmpty(data.SourceApplication)
-                && _settingsService.Current.ExcludedApplications.Any(
-                    x => x.Equals(data.SourceApplication, StringComparison.OrdinalIgnoreCase)))
+            // 来源应用：监听器已在前台窗口切换前捕获（排除本进程自身）。
+            if (string.IsNullOrEmpty(data.SourceApplication)
+                && !string.IsNullOrEmpty(args.SourceApplication)
+                && !string.Equals(
+                    args.SourceApplication,
+                    Environment.ProcessPath,
+                    StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogDebug("Skipping clipboard from excluded app {App}", data.SourceApplication);
+                data.SourceApplication = args.SourceApplication;
+            }
+
+            // 敏感应用排除（规范 §39）：来源应用进程名命中排除列表则不入库。
+            // SourceApplication 为完整路径，按文件名（去扩展名）精确比较，与设置页“添加当前应用”一致。
+            var sourceProcessName = Path.GetFileNameWithoutExtension(data.SourceApplication);
+            if (!string.IsNullOrEmpty(sourceProcessName)
+                && _settingsService.Current.ExcludedApplications.Any(
+                    x => x.Equals(sourceProcessName, StringComparison.OrdinalIgnoreCase)))
+            {
+                _logger.LogDebug("Skipping clipboard from excluded app {App}", sourceProcessName);
                 return;
             }
 
@@ -134,7 +147,7 @@ public sealed class ClipboardPipelineService : IDisposable
         catch (Exception ex)
         {
             // 单个条目失败不能影响整个引擎（规范 §45）。
-            _logger.LogError(ex, "Failed to process clipboard change (operation {OperationId})", operationId);
+            _logger.LogError(ex, "Failed to process clipboard change (operation {OperationId})", args.OperationId);
         }
         finally
         {

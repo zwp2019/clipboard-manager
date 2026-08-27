@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Linq;
 using ClipboardManager.Contracts;
 using ClipboardManager.Domain;
 
@@ -17,7 +18,7 @@ public sealed class ClipboardHashService : IClipboardHashService
         {
             ClipboardType.Image => HashBytes(data.ImageBytes),
             ClipboardType.File => HashString(
-                string.Join('\n', data.FilePaths?.OrderBy(x => x, StringComparer.Ordinal) ?? Array.Empty<string>())),
+                string.Join('\n', data.FilePaths?.OrderBy(x => x, StringComparer.Ordinal) ?? Enumerable.Empty<string>())),
             _ => HashString(data.Text ?? data.Html ?? data.Rtf ?? string.Empty),
         };
     }

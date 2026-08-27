@@ -46,6 +46,9 @@ public sealed class ClipboardItem
 
     public bool IsFavorite { get; set; }
 
+    /// <summary>自定义分组名称（null 表示未分组，规范 §33）。</summary>
+    public string? GroupName { get; set; }
+
     public bool IsDeleted { get; set; }
 
     /// <summary>

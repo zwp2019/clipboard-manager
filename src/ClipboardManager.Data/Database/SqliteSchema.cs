@@ -5,12 +5,21 @@ namespace ClipboardManager.Data;
 /// </summary>
 public static class SqliteSchema
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public static readonly IReadOnlyList<Migration> Migrations = new List<Migration>
     {
         new(1, V1),
+        new(2, V2),
     };
+
+    /// <summary>V2：自定义分组（轻量：条目直接存组名，分组列表按 DISTINCT 查询）。</summary>
+    private const string V2 =
+        """
+        ALTER TABLE clipboard_items ADD COLUMN group_name TEXT;
+
+        CREATE INDEX IF NOT EXISTS idx_clipboard_items_group ON clipboard_items (group_name);
+        """;
 
     private const string V1 =
         """

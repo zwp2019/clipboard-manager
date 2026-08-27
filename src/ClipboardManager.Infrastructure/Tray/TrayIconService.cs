@@ -59,7 +59,7 @@ public sealed class TrayIconService : ITrayService, IDisposable
                 uFlags = NativeMethods.NIF_MESSAGE | NativeMethods.NIF_ICON | NativeMethods.NIF_TIP,
                 uCallbackMessage = NativeMethods.WM_TRAYICON,
                 hIcon = _hIcon,
-                szTip = "Clipboard Manager",
+                szTip = "剪贴板管理器",
             };
 
             if (!NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, ref _nid))
@@ -131,22 +131,22 @@ public sealed class TrayIconService : ITrayService, IDisposable
 
         try
         {
-            NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.OpenClipboard, "Open Clipboard");
-            NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.Settings, "Settings");
+            NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.OpenClipboard, "打开剪贴板");
+            NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.Settings, "设置");
             NativeMethods.AppendMenuW(menu, NativeMethods.MF_SEPARATOR, 0, null);
 
             if (_paused)
             {
-                NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.ResumeMonitoring, "Resume Monitoring");
+                NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.ResumeMonitoring, "恢复监听");
             }
             else
             {
-                NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.PauseMonitoring, "Pause Monitoring");
+                NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.PauseMonitoring, "暂停监听");
             }
 
-            NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.ClearHistory, "Clear History");
+            NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.ClearHistory, "清空历史");
             NativeMethods.AppendMenuW(menu, NativeMethods.MF_SEPARATOR, 0, null);
-            NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.Quit, "Quit");
+            NativeMethods.AppendMenuW(menu, NativeMethods.MF_STRING, (nuint)TrayCommand.Quit, "退出");
 
             NativeMethods.GetCursorPos(out var point);
             NativeMethods.SetForegroundWindow(_hostWindow.Handle);
@@ -160,6 +160,22 @@ public sealed class TrayIconService : ITrayService, IDisposable
 
     private static nint CreateTrayIcon()
     {
+        // 优先加载应用图标 Assets/app.ico（与 exe / 任务栏图标一致），失败回退运行时绘制。
+        try
+        {
+            var icoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+            if (File.Exists(icoPath))
+            {
+                using var icon = new Icon(icoPath, 32, 32);
+                using var icoBitmap = icon.ToBitmap();
+                return icoBitmap.GetHicon();
+            }
+        }
+        catch
+        {
+            // 回退到 GDI+ 绘制。
+        }
+
         using var bitmap = new Bitmap(32, 32);
         using (var graphics = Graphics.FromImage(bitmap))
         {

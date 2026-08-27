@@ -13,7 +13,7 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
 {
     private const string Columns =
         "id, type, text, html, rtf, image_path, thumbnail_path, file_paths, " +
-        "source_application, source_title, created_at, updated_at, hash, size, is_favorite, is_deleted";
+        "source_application, source_title, created_at, updated_at, hash, size, is_favorite, group_name, is_deleted";
 
     private readonly SqliteConnectionFactory _factory;
     private readonly ILogger<ClipboardItemRepository> _logger;
@@ -31,11 +31,11 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
             INSERT INTO clipboard_items
                 (type, text, html, rtf, image_path, thumbnail_path, file_paths,
                  source_application, source_title, created_at, updated_at, hash, size,
-                 is_favorite, is_deleted)
+                 is_favorite, group_name, is_deleted)
             VALUES
                 (@Type, @Text, @Html, @Rtf, @ImagePath, @ThumbnailPath, @FilePaths,
                  @SourceApplication, @SourceTitle, @CreatedAt, @UpdatedAt, @Hash, @Size,
-                 @IsFavorite, @IsDeleted);
+                 @IsFavorite, @GroupName, @IsDeleted);
             SELECT last_insert_rowid();
             """;
 
@@ -80,6 +80,30 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
         using var connection = _factory.CreateConnection();
         var rows = await connection.QueryAsync<ClipboardItem>(
             new CommandDefinition(sql, new { offset, limit }, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<ClipboardItem>> GetByTypeAsync(ClipboardType type, int offset, int limit, CancellationToken ct)
+    {
+        const string sql =
+            $"SELECT {Columns} FROM clipboard_items WHERE is_deleted = 0 AND type = @type " +
+            "ORDER BY created_at DESC, id DESC LIMIT @limit OFFSET @offset";
+
+        using var connection = _factory.CreateConnection();
+        var rows = await connection.QueryAsync<ClipboardItem>(
+            new CommandDefinition(sql, new { type, offset, limit }, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    public async Task<IReadOnlyList<ClipboardItem>> GetByGroupAsync(string group, int offset, int limit, CancellationToken ct)
+    {
+        const string sql =
+            $"SELECT {Columns} FROM clipboard_items WHERE is_deleted = 0 AND group_name = @group " +
+            "ORDER BY created_at DESC, id DESC LIMIT @limit OFFSET @offset";
+
+        using var connection = _factory.CreateConnection();
+        var rows = await connection.QueryAsync<ClipboardItem>(
+            new CommandDefinition(sql, new { group, offset, limit }, cancellationToken: ct));
         return rows.AsList();
     }
 
@@ -144,6 +168,26 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
         using var connection = _factory.CreateConnection();
         await connection.ExecuteAsync(
             new CommandDefinition(sql, new { id, favorite = favorite ? 1 : 0 }, cancellationToken: ct));
+    }
+
+    public async Task SetGroupAsync(long id, string? group, CancellationToken ct)
+    {
+        const string sql = "UPDATE clipboard_items SET group_name = @group WHERE id = @id";
+        using var connection = _factory.CreateConnection();
+        await connection.ExecuteAsync(
+            new CommandDefinition(sql, new { id, group }, cancellationToken: ct));
+    }
+
+    public async Task<IReadOnlyList<string>> GetGroupNamesAsync(CancellationToken ct)
+    {
+        const string sql =
+            "SELECT DISTINCT group_name FROM clipboard_items " +
+            "WHERE is_deleted = 0 AND group_name IS NOT NULL ORDER BY group_name";
+
+        using var connection = _factory.CreateConnection();
+        var rows = await connection.QueryAsync<string>(
+            new CommandDefinition(sql, cancellationToken: ct));
+        return rows.AsList();
     }
 
     public async Task TouchAsync(long id, CancellationToken ct)

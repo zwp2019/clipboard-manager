@@ -3,6 +3,7 @@ using ClipboardManager.Contracts;
 using ClipboardManager.Infrastructure;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Windows.Storage.Pickers;
 using Windows.System;
 using Windows.UI.Core;
@@ -42,7 +43,7 @@ public sealed partial class SettingsWindow : Window
         var key = e.Key;
 
         // 忽略纯修饰键按下
-        if (key is VirtualKey.Control or VirtualKey.Shift or VirtualKey.Menu or VirtualKey.WindowsKey)
+        if (key is VirtualKey.Control or VirtualKey.Shift or VirtualKey.Menu or VirtualKey.LeftWindows or VirtualKey.RightWindows)
         {
             e.Handled = true;
             return;
@@ -71,7 +72,7 @@ public sealed partial class SettingsWindow : Window
             parts.Add("Alt");
         }
 
-        if (IsKeyDown(VirtualKey.WindowsKey))
+        if (IsKeyDown(VirtualKey.LeftWindows) || IsKeyDown(VirtualKey.RightWindows))
         {
             parts.Add("Win");
         }
@@ -176,11 +177,11 @@ public sealed partial class SettingsWindow : Window
         {
             var directory = Path.GetDirectoryName(file.Path) ?? _paths.Backups;
             var backupPath = await _backupService.CreateBackupAsync(directory, CancellationToken.None);
-            await ShowInfoAsync("Backup Created", $"数据库已备份到：\n{backupPath}");
+            await ShowInfoAsync("备份完成", $"数据库已备份到：\n{backupPath}");
         }
         catch (Exception ex)
         {
-            await ShowInfoAsync("Backup Failed", ex.Message);
+            await ShowInfoAsync("备份失败", ex.Message);
         }
     }
 
@@ -210,11 +211,11 @@ public sealed partial class SettingsWindow : Window
         try
         {
             await _backupService.RestoreAsync(file.Path, CancellationToken.None);
-            await ShowInfoAsync("Restore Completed", "数据库已恢复，建议重启应用。");
+            await ShowInfoAsync("恢复完成", "数据库已恢复，建议重启应用。");
         }
         catch (Exception ex)
         {
-            await ShowInfoAsync("Restore Failed", ex.Message);
+            await ShowInfoAsync("恢复失败", ex.Message);
         }
     }
 
@@ -229,11 +230,11 @@ public sealed partial class SettingsWindow : Window
         try
         {
             await _historyService.ClearAsync(CancellationToken.None);
-            await ShowInfoAsync("Done", "剪贴板历史已清空。");
+            await ShowInfoAsync("完成", "剪贴板历史已清空。");
         }
         catch (Exception ex)
         {
-            await ShowInfoAsync("Failed", ex.Message);
+            await ShowInfoAsync("操作失败", ex.Message);
         }
     }
 

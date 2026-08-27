@@ -164,7 +164,7 @@ public sealed class ClipboardWriter : IClipboardWriter
         IReadOnlyList<string> paths;
         try
         {
-            paths = System.Text.Json.JsonSerializer.Deserialize<List<string>>(filePathsJson) ?? Array.Empty<string>();
+            paths = System.Text.Json.JsonSerializer.Deserialize<List<string>>(filePathsJson) ?? new List<string>();
         }
         catch
         {

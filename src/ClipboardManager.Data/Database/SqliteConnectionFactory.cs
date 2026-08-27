@@ -7,6 +7,13 @@ namespace ClipboardManager.Data;
 /// </summary>
 public sealed class SqliteConnectionFactory
 {
+    static SqliteConnectionFactory()
+    {
+        // 数据库列名为 snake_case（image_path / created_at 等），
+        // 必须启用下划线映射，否则实体属性全部静默为 null/默认值。
+        Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+    }
+
     private readonly string _connectionString;
 
     public SqliteConnectionFactory(string databaseFilePath)

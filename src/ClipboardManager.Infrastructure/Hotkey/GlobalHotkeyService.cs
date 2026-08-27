@@ -36,7 +36,9 @@ public sealed class GlobalHotkeyService : IHotkeyService
             return false;
         }
 
-        if (!NativeMethods.RegisterHotKey(_hostWindow.Handle, HotkeyId, modifiers, virtualKey))
+        // RegisterHotKey 必须在窗口所属线程调用（error 1408: belongs to other thread）。
+        var ok = _hostWindow.RegisterHotKeyOnHostThreadAsync(HotkeyId, modifiers, virtualKey).GetAwaiter().GetResult();
+        if (!ok)
         {
             // 注册失败：可能与其他应用冲突（规范 §28 冲突检测）。
             _logger.LogWarning(
@@ -59,8 +61,8 @@ public sealed class GlobalHotkeyService : IHotkeyService
             return;
         }
 
-        NativeMethods.UnregisterHotKey(_hostWindow.Handle, HotkeyId);
         _hostWindow.HotkeyPressed -= OnHotkeyPressed;
+        _hostWindow.UnregisterHotKeyOnHostThreadAsync(HotkeyId).GetAwaiter().GetResult();
         IsRegistered = false;
     }
 

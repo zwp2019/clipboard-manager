@@ -37,4 +37,10 @@ public sealed class ClipboardChangedEventArgs : EventArgs
 {
     /// <summary>用于区分是否为本程序自身写入（防死循环，规范 §13）。</summary>
     public required string OperationId { get; init; }
+
+    /// <summary>
+    /// 复制来源前台窗口的进程可执行文件完整路径。
+    /// 由监听器在事件触发的瞬间捕获（延迟读取时前台窗口可能已切换）。
+    /// </summary>
+    public string? SourceApplication { get; set; }
 }

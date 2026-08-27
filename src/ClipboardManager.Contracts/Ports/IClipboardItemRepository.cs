@@ -17,11 +17,23 @@ public interface IClipboardItemRepository
 
     Task<IReadOnlyList<ClipboardItem>> GetFavoritesAsync(int offset, int limit, CancellationToken ct);
 
+    /// <summary>按类型查询最近条目（Dock 标签切换，规范 §34）。</summary>
+    Task<IReadOnlyList<ClipboardItem>> GetByTypeAsync(ClipboardType type, int offset, int limit, CancellationToken ct);
+
+    /// <summary>查询指定自定义分组的条目（标签栏动态标签，规范 §33）。</summary>
+    Task<IReadOnlyList<ClipboardItem>> GetByGroupAsync(string group, int offset, int limit, CancellationToken ct);
+
     Task<IReadOnlyList<ClipboardItem>> SearchAsync(string query, int offset, int limit, CancellationToken ct);
 
     Task<int> CountAsync(CancellationToken ct);
 
     Task SetFavoriteAsync(long id, bool favorite, CancellationToken ct);
+
+    /// <summary>设置/移除条目的自定义分组（null 表示移出，规范 §33）。</summary>
+    Task SetGroupAsync(long id, string? group, CancellationToken ct);
+
+    /// <summary>全部现有分组名称（去重）。</summary>
+    Task<IReadOnlyList<string>> GetGroupNamesAsync(CancellationToken ct);
 
     /// <summary>去重命中：仅刷新时间戳使其移动到最前（规范 §15）。</summary>
     Task TouchAsync(long id, CancellationToken ct);

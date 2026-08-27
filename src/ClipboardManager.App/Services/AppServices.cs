@@ -1,5 +1,4 @@
 using ClipboardManager.Application;
-using ClipboardManager.Application.Services;
 using ClipboardManager.App.ViewModels;
 using ClipboardManager.Contracts;
 using ClipboardManager.Data;

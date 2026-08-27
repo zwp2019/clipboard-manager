@@ -1,13 +1,19 @@
+using System.Collections.Concurrent;
+using System.Runtime.InteropServices.WindowsRuntime;
+using System.Text.Json;
 using ClipboardManager.Contracts;
 using ClipboardManager.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Graphics.Imaging;
 
 namespace ClipboardManager.App.ViewModels;
 
 /// <summary>
 /// 列表项 ViewModel：展示文本、类型图标、时间与缩略图（懒加载 + LRU 缓存，规范 §22、§26、§37）。
+/// 现在同时承担底部 Dock 风格卡片的展示数据。
 /// </summary>
 public partial class ClipboardItemViewModel : ObservableObject
 {
@@ -29,6 +35,27 @@ public partial class ClipboardItemViewModel : ObservableObject
     }
 
     public bool IsImage => Item.Type == ClipboardType.Image;
+
+    /// <summary>来源程序名称（exe 文件名去扩展名，如 "chrome"、"devenv"）。</summary>
+    public string? SourceName => GetSourceName();
+
+    private string? GetSourceName()
+    {
+        var path = Item.SourceApplication;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.GetFileNameWithoutExtension(path);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
 
     public Visibility ThumbnailVisibility => IsImage ? Visibility.Visible : Visibility.Collapsed;
 
@@ -62,9 +89,9 @@ public partial class ClipboardItemViewModel : ObservableObject
         get
         {
             var parts = new List<string>();
-            if (!string.IsNullOrEmpty(Item.SourceApplication))
+            if (!string.IsNullOrEmpty(SourceName))
             {
-                parts.Add(Item.SourceApplication);
+                parts.Add(SourceName);
             }
 
             if (Item.Type == ClipboardType.File && !string.IsNullOrEmpty(Item.FilePaths))
@@ -74,6 +101,114 @@ public partial class ClipboardItemViewModel : ObservableObject
 
             return parts.Count > 0 ? string.Join(" · ", parts) : string.Empty;
         }
+    }
+
+    /// <summary>Dock 卡片顶部标题（中文）。</summary>
+    public string CardTitle => Item.Type switch
+    {
+        ClipboardType.Code => "代码",
+        ClipboardType.Url => "链接",
+        ClipboardType.Image => "图片",
+        ClipboardType.File => "文件",
+        ClipboardType.Html => "HTML",
+        ClipboardType.Rtf => "富文本",
+        _ => "文本",
+    };
+
+    /// <summary>类型画笔资源键（便于 XAML 绑定到 Design Token）。</summary>
+    public string TypeBrushKey => Item.Type switch
+    {
+        ClipboardType.Code => "TypeCodeBrush",
+        ClipboardType.Url => "TypeUrlBrush",
+        ClipboardType.Image => "TypeImageBrush",
+        ClipboardType.File => "TypeFileBrush",
+        ClipboardType.Html => "TypeHtmlBrush",
+        ClipboardType.Rtf => "TypeRtfBrush",
+        _ => "TypeTextBrush",
+    };
+
+    /// <summary>缩略图加载前的占位图标可见性（仅图片类型，避免文字卡片误显示图标）。</summary>
+    public Visibility ThumbnailPlaceholderVisibility =>
+        IsImage && ThumbnailSource is null ? Visibility.Visible : Visibility.Collapsed;
+
+    partial void OnThumbnailSourceChanged(BitmapImage? value)
+    {
+        OnPropertyChanged(nameof(ThumbnailPlaceholderVisibility));
+    }
+
+    /// <summary>卡片底部信息（Paste 风格：来源 · 时间）。</summary>
+    public string CardFooterText
+    {
+        get
+        {
+            var source = SourceName;
+            return string.IsNullOrEmpty(source) ? TimeText : $"{source} · {TimeText}";
+        }
+    }
+
+    /// <summary>Dock 卡片顶部背景色（统一使用 App.xaml 类型识别色 Design Token）。</summary>
+    public Brush HeaderBrush => (Brush)Microsoft.UI.Xaml.Application.Current.Resources[TypeBrushKey];
+
+    /// <summary>卡片上展示的内容类型标签（Paste 风格）。</summary>
+    public string TypeLabel => Item.Type switch
+    {
+        ClipboardType.Text => "文本",
+        ClipboardType.Url => "链接",
+        ClipboardType.Image => "图片",
+        ClipboardType.File => "文件",
+        ClipboardType.Html => "HTML",
+        ClipboardType.Rtf => "RTF",
+        ClipboardType.Code => "代码",
+        _ => "其他",
+    };
+
+    /// <summary>卡片上展示的内容摘要（保留多行，最多几行）。</summary>
+    public string CardPreviewText
+    {
+        get
+        {
+            if (Item.Type == ClipboardType.Image)
+            {
+                return string.Empty;
+            }
+
+            if (Item.Type == ClipboardType.File)
+            {
+                return GetFilePreview();
+            }
+
+            var preview = Item.GetPreviewText() ?? string.Empty;
+            return string.IsNullOrWhiteSpace(preview) ? "(空内容)" : preview.Trim();
+        }
+    }
+
+    public Visibility CardPreviewVisibility =>
+        Item.Type == ClipboardType.Image ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>文件类型：显示数量与首路径文件名，避免暴露完整路径。</summary>
+    private string GetFilePreview()
+    {
+        var paths = Item.FilePaths;
+        if (string.IsNullOrWhiteSpace(paths))
+        {
+            return "文件";
+        }
+
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<string>>(paths);
+            if (list is { Count: > 0 })
+            {
+                var firstName = Path.GetFileName(list[0]);
+                return list.Count == 1 ? firstName : $"{firstName} 等 {list.Count} 项";
+            }
+        }
+        catch (JsonException)
+        {
+            // 容错：解析失败退化为通用文案。
+        }
+
+        return "文件";
     }
 
     public Visibility DetailTextVisibility =>
@@ -109,6 +244,97 @@ public partial class ClipboardItemViewModel : ObservableObject
     }
 
     public string FavoriteGlyph => IsFavorite ? "\uE735" : "\uE734"; // FavoriteFill / Favorite
+
+    // ---- 自定义分组（规范 §33） ----
+
+    /// <summary>分组徽章文本。</summary>
+    public string GroupBadgeText => Item.GroupName ?? string.Empty;
+
+    public Visibility GroupBadgeVisibility =>
+        string.IsNullOrEmpty(Item.GroupName) ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>设置/移除分组：更新内存实体并落库，刷新徽章（UI 线程调用）。</summary>
+    public async Task SetGroupAsync(IHistoryService historyService, string? group)
+    {
+        Item.GroupName = string.IsNullOrWhiteSpace(group) ? null : group.Trim();
+        OnPropertyChanged(nameof(GroupBadgeText));
+        OnPropertyChanged(nameof(GroupBadgeVisibility));
+        await historyService.SetGroupAsync(Item.Id, Item.GroupName, CancellationToken.None);
+    }
+
+    // ---- 来源程序图标（Paste 风格：卡片底部显示来源应用小图标） ----
+
+    /// <summary>进程级缓存：exe 路径 → 已解码图标（UI 线程专用 SoftwareBitmapSource）。</summary>
+    private static readonly ConcurrentDictionary<string, SoftwareBitmapSource?> SourceIconCache = new();
+
+    [ObservableProperty]
+    private SoftwareBitmapSource? sourceAppIconSource;
+
+    public Visibility SourceIconVisibility =>
+        SourceAppIconSource is null ? Visibility.Collapsed : Visibility.Visible;
+
+    partial void OnSourceAppIconSourceChanged(SoftwareBitmapSource? value)
+    {
+        OnPropertyChanged(nameof(SourceIconVisibility));
+    }
+
+    /// <summary>
+    /// 懒加载来源程序图标（UI 线程调用）：后台提取 exe 关联图标并解码，回 UI 线程生成可绑定源。
+    /// </summary>
+    public async void EnsureSourceIcon()
+    {
+        var exePath = Item.SourceApplication;
+        if (string.IsNullOrWhiteSpace(exePath) || SourceAppIconSource is not null)
+        {
+            return;
+        }
+
+        if (SourceIconCache.TryGetValue(exePath, out var cached))
+        {
+            SourceAppIconSource = cached;
+            return;
+        }
+
+        try
+        {
+            // 后台：提取图标 → PNG 字节 → SoftwareBitmap（Bgra8 预乘）。
+            var softwareBitmap = await Task.Run(() =>
+            {
+                using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                if (icon is null)
+                {
+                    return null;
+                }
+
+                using var bitmap = icon.ToBitmap();
+                using var ms = new MemoryStream();
+                bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                ms.Position = 0;
+
+                var decoder = BitmapDecoder.CreateAsync(ms.AsRandomAccessStream()).AsTask().GetAwaiter().GetResult();
+                return decoder.GetSoftwareBitmapAsync(
+                    BitmapPixelFormat.Bgra8,
+                    BitmapAlphaMode.Premultiplied).AsTask().GetAwaiter().GetResult();
+            });
+
+            if (softwareBitmap is null)
+            {
+                SourceIconCache[exePath] = null;
+                return;
+            }
+
+            // 回到 UI 线程创建 SoftwareBitmapSource。
+            var source = new SoftwareBitmapSource();
+            await source.SetBitmapAsync(softwareBitmap);
+            SourceIconCache[exePath] = source;
+            SourceAppIconSource = source;
+        }
+        catch (Exception)
+        {
+            // 图标提取失败则缓存 null，避免重复尝试（规范 §45）。
+            SourceIconCache[exePath] = null;
+        }
+    }
 
     /// <summary>
     /// 懒加载缩略图（在 UI 线程调用）：从 LRU 缓存读取，未命中时解码文件并写入缓存（规范 §22）。

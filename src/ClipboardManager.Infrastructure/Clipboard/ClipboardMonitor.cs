@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using ClipboardManager.Contracts;
 using ClipboardManager.Infrastructure.Interop;
 using Microsoft.Extensions.Logging;
@@ -75,6 +76,10 @@ public sealed class ClipboardMonitor : IClipboardMonitor, IDisposable
             _logger.LogTrace("Clipboard change from own write ignored");
             return;
         }
+
+        // 在事件触发的瞬间捕获前台窗口进程（复制来源），
+        // 延迟到读取线程时前台窗口可能已被用户切换。
+        e.SourceApplication = ProcessHelper.GetProcessImagePath(ProcessHelper.GetForegroundWindow());
 
         ClipboardChanged?.Invoke(this, e);
     }

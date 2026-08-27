@@ -16,6 +16,7 @@ public partial class LauncherViewModel : ObservableObject
     private readonly IHistoryService _history;
     private readonly ISearchService _search;
     private readonly IQuickPasteService _quickPaste;
+    private readonly IClipboardWriter _writer;
     private readonly IDispatcher _dispatcher;
     private readonly IDebouncer _debouncer;
     private readonly LruImageCache _imageCache;
@@ -39,10 +40,13 @@ public partial class LauncherViewModel : ObservableObject
     [ObservableProperty]
     private ClipboardItemViewModel? selectedItem;
 
+    private IReadOnlyList<ClipboardItem> _lastResults = new List<ClipboardItem>();
+
     public LauncherViewModel(
         IHistoryService history,
         ISearchService search,
         IQuickPasteService quickPaste,
+        IClipboardWriter writer,
         IDispatcher dispatcher,
         IDebouncer debouncer,
         LruImageCache imageCache)
@@ -50,6 +54,7 @@ public partial class LauncherViewModel : ObservableObject
         _history = history;
         _search = search;
         _quickPaste = quickPaste;
+        _writer = writer;
         _dispatcher = dispatcher;
         _debouncer = debouncer;
         _imageCache = imageCache;
@@ -96,6 +101,17 @@ public partial class LauncherViewModel : ObservableObject
         _searchCts = new CancellationTokenSource();
         var ct = _searchCts.Token;
         await ExecuteSearchAsync(string.Empty, ct);
+    }
+
+    /// <summary>
+    /// 立即按指定关键词执行搜索（回车触发，跳过输入防抖）。不传则用当前绑定关键词。
+    /// </summary>
+    public async Task SearchNowAsync(string? query = null)
+    {
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+        await ExecuteSearchAsync(query ?? SearchText?.Trim() ?? string.Empty, ct);
     }
 
     private async Task ExecuteSearchAsync(string query, CancellationToken ct)
@@ -166,6 +182,7 @@ public partial class LauncherViewModel : ObservableObject
 
     private async Task ApplyResultsAsync(IReadOnlyList<ClipboardItem> results, string label)
     {
+        _lastResults = results;
         await _dispatcher.PostAsync(
             () =>
             {
@@ -173,11 +190,41 @@ public partial class LauncherViewModel : ObservableObject
                     results.Select(item => new ClipboardItemViewModel(item, _imageCache)));
                 StatusText = $"{label} · {results.Count} 条";
                 IsSearching = false;
-                if (Items.Count > 0)
-                {
-                    SelectedItem = Items[0];
-                }
+                // 列表为空时必须清空选中，避免操作作用于不可见条目。
+                SelectedItem = Items.Count > 0 ? Items[0] : null;
             });
+    }
+
+    /// <summary>
+    /// 按类型显示最近条目（Dock 顶部标签栏使用）：始终查库，
+    /// 避免基于上一个视图的内存结果集过滤导致数据错乱。
+    /// </summary>
+    public Task ShowTypeAsync(ClipboardType type)
+    {
+        _view = "history";
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+        var label = type switch
+        {
+            ClipboardType.Url => "链接",
+            ClipboardType.Code => "代码",
+            ClipboardType.Image => "图片",
+            _ => "条目",
+        };
+        return LoadAsync(() => _history.GetByTypeAsync(type, 0, PageSize, ct), label, ct);
+    }
+
+    /// <summary>
+    /// 显示指定自定义分组的内容（标签栏动态标签，始终查库）。
+    /// </summary>
+    public Task ShowGroupAsync(string group)
+    {
+        _view = "group";
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+        return LoadAsync(() => _history.GetByGroupAsync(group, 0, PageSize, ct), group, ct);
     }
 
     public async Task PasteSelectedAsync()
@@ -190,6 +237,29 @@ public partial class LauncherViewModel : ObservableObject
         await _quickPaste.PasteAsync(SelectedItem.Item, _pasteTargetWindow, CancellationToken.None);
     }
 
+    /// <summary>
+    /// 复制选中项到剪贴板（Ctrl+C）：只写入，不激活窗口、不发送粘贴（规范 §30）。
+    /// </summary>
+    public async Task CopySelectedAsync()
+    {
+        if (SelectedItem is null)
+        {
+            return;
+        }
+
+        var operationId = Guid.NewGuid().ToString("N");
+        await _writer.WriteAsync(SelectedItem.Item, operationId, CancellationToken.None);
+        StatusText = $"已复制 · {SelectedItem.CardTitle}";
+    }
+
+    /// <summary>全部现有分组名称（分组对话框使用）。</summary>
+    public Task<IReadOnlyList<string>> GetGroupNamesAsync()
+        => _history.GetGroupNamesAsync(CancellationToken.None);
+
+    /// <summary>设置/移除选中项的分组。</summary>
+    public Task SetGroupAsync(ClipboardItemViewModel item, string? group)
+        => item.SetGroupAsync(_history, group);
+
     public async Task ToggleFavoriteAsync(ClipboardItemViewModel item)
     {
         if (item is null)
@@ -200,8 +270,26 @@ public partial class LauncherViewModel : ObservableObject
         await item.ToggleFavoriteAsync(_history);
         if (_view == "favorites" && !item.IsFavorite)
         {
-            Items.Remove(item);
+            RemoveFromView(item, "已取消收藏");
         }
+    }
+
+    /// <summary>
+    /// 从当前视图移除条目：同步选中项与计数（修复删除/取消收藏后操作残留于不可见条目的缺陷）。
+    /// </summary>
+    private void RemoveFromView(ClipboardItemViewModel item, string reason)
+    {
+        var wasSelected = ReferenceEquals(SelectedItem, item);
+        var index = Items.IndexOf(item);
+        Items.Remove(item);
+
+        if (wasSelected)
+        {
+            // 就近选择同位置的下一个条目，保持键盘流连续。
+            SelectedItem = index < Items.Count ? Items[index] : Items.LastOrDefault();
+        }
+
+        StatusText = $"{reason} · {Items.Count} 条";
     }
 
     public async Task DeleteAsync(ClipboardItemViewModel item)
@@ -212,8 +300,7 @@ public partial class LauncherViewModel : ObservableObject
         }
 
         await _history.DeleteAsync(item.Item.Id, CancellationToken.None);
-        Items.Remove(item);
-        StatusText = $"已删除 1 条 · {Items.Count} 条";
+        RemoveFromView(item, "已删除 1 条");
     }
 
     public void Dispose()

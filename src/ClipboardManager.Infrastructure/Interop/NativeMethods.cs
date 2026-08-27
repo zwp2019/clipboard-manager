@@ -37,6 +37,18 @@ internal static partial class NativeMethods
     // ---- ShowWindow ----
     public const int SW_RESTORE = 9;
 
+    // ---- SetWindowPos flags ----
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOZORDER = 0x0004;
+    public const uint SWP_SHOWWINDOW = 0x0040;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetWindowRect(nint hWnd, ref RECT lpRect);
+
     // ---- Tray ----
     public const uint NIM_ADD = 0x00000000;
     public const uint NIM_MODIFY = 0x00000001;
@@ -56,7 +68,7 @@ internal static partial class NativeMethods
     // ---- SendInput ----
     public const uint INPUT_KEYBOARD = 1;
     public const uint KEYEVENTF_KEYUP = 0x0002;
-    public const uint VK_CONTROL = 0x11;
+    public const ushort VK_CONTROL = 0x11;
     public const ushort VK_V = 0x56;
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
@@ -171,6 +183,19 @@ internal static partial class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern bool IsWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(nint hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetDpiForWindow(nint hwnd);
+
+    // ---- DWM：窗口边框颜色（规范 §5：无明显传统 Window Border） ----
+    public const uint DWMWA_BORDER_COLOR = 34;
+    public const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(nint hwnd, uint attr, ref uint value, uint sizeOfValue);
 
     // ---- Input ----
     [DllImport("user32.dll", SetLastError = true)]

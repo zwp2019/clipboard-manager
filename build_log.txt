@@ -1,0 +1,20 @@
+﻿  正在确定要还原的项目…
+D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Infrastructure\ClipboardManager.Infrastructure.csproj : warning NU1510: PackageReference Microsoft.Win32.Registry 将不会被裁剪。此包自动可用，无需显式引用。移除 PackageReference 项。 [D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.App\ClipboardManager.App.csproj]
+  所有项目均是最新的，无法还原。
+D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Infrastructure\ClipboardManager.Infrastructure.csproj : warning NU1510: PackageReference Microsoft.Win32.Registry 将不会被裁剪。此包自动可用，无需显式引用。移除 PackageReference 项。
+  ClipboardManager.Domain -> D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Domain\bin\Debug\net10.0\ClipboardManager.Domain.dll
+  ClipboardManager.Contracts -> D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Contracts\bin\Debug\net10.0\ClipboardManager.Contracts.dll
+  ClipboardManager.Application -> D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Application\bin\Debug\net10.0\ClipboardManager.Application.dll
+  ClipboardManager.Data -> D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Data\bin\Debug\net10.0\ClipboardManager.Data.dll
+  ClipboardManager.Infrastructure -> D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Infrastructure\bin\Debug\net10.0-windows10.0.19041.0\ClipboardManager.Infrastructure.dll
+C:\Users\Turing\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\Microsoft.UI.Xaml.Markup.Compiler.interop.targets(594,9): error MSB3073: 命令“"C:\Users\Turing\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\net6.0\..\net472\XamlCompiler.exe" "obj\Debug\net10.0-windows10.0.19041.0\win-x64\\input.json" "obj\Debug\net10.0-windows10.0.19041.0\win-x64\\output.json"”已退出，代码为 1。 [D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.App\ClipboardManager.App.csproj]
+
+生成失败。
+
+D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Infrastructure\ClipboardManager.Infrastructure.csproj : warning NU1510: PackageReference Microsoft.Win32.Registry 将不会被裁剪。此包自动可用，无需显式引用。移除 PackageReference 项。 [D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.App\ClipboardManager.App.csproj]
+D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.Infrastructure\ClipboardManager.Infrastructure.csproj : warning NU1510: PackageReference Microsoft.Win32.Registry 将不会被裁剪。此包自动可用，无需显式引用。移除 PackageReference 项。
+C:\Users\Turing\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\Microsoft.UI.Xaml.Markup.Compiler.interop.targets(594,9): error MSB3073: 命令“"C:\Users\Turing\.nuget\packages\microsoft.windowsappsdk\1.7.250310001\buildTransitive\..\tools\net6.0\..\net472\XamlCompiler.exe" "obj\Debug\net10.0-windows10.0.19041.0\win-x64\\input.json" "obj\Debug\net10.0-windows10.0.19041.0\win-x64\\output.json"”已退出，代码为 1。 [D:\111-zwp\111-剪贴板\clipboard-manager\src\ClipboardManager.App\ClipboardManager.App.csproj]
+    2 个警告
+    1 个错误
+
+已用时间 00:00:02.76
