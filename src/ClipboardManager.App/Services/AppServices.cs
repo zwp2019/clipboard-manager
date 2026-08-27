@@ -4,6 +4,7 @@ using ClipboardManager.Contracts;
 using ClipboardManager.Data;
 using ClipboardManager.Domain;
 using ClipboardManager.Infrastructure;
+using ClipboardManager.Infrastructure.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -39,6 +40,7 @@ public static class AppServices
         services.AddSingleton<IWindowActivator, WindowActivator>();
         services.AddSingleton<IInputSimulator, InputSimulator>();
         services.AddSingleton<IAutoStartService, AutoStartService>();
+        services.AddSingleton<INotificationService, OverlayToastService>();
 
         // ---- Application（应用服务编排）----
         services.AddSingleton<ClipboardDeduplicationService>();

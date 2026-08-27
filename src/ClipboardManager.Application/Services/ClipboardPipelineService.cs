@@ -18,6 +18,7 @@ public sealed class ClipboardPipelineService : IDisposable
     private readonly ClipboardDeduplicationService _deduplication;
     private readonly ISettingsService _settingsService;
     private readonly IInternalClipboardGuard _guard;
+    private readonly INotificationService? _notification;
     private readonly ILogger<ClipboardPipelineService> _logger;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -33,7 +34,8 @@ public sealed class ClipboardPipelineService : IDisposable
         ClipboardDeduplicationService deduplication,
         ISettingsService settingsService,
         IInternalClipboardGuard guard,
-        ILogger<ClipboardPipelineService> logger)
+        ILogger<ClipboardPipelineService> logger,
+        INotificationService? notification = null)
     {
         _monitor = monitor;
         _reader = reader;
@@ -43,6 +45,7 @@ public sealed class ClipboardPipelineService : IDisposable
         _deduplication = deduplication;
         _settingsService = settingsService;
         _guard = guard;
+        _notification = notification;
         _logger = logger;
     }
 
@@ -139,6 +142,9 @@ public sealed class ClipboardPipelineService : IDisposable
 
             var item = _normalizer.Normalize(data, hash);
             await _storage.SaveAsync(item, data.ImageBytes, data.ImageExtension, ct);
+
+            // 捕获成功的系统 Toast 提示（失败已在服务内部兜底，不影响主流程）。
+            _notification?.ShowItemCaptured(item);
         }
         catch (OperationCanceledException)
         {
