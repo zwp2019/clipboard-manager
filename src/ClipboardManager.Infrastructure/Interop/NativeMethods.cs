@@ -56,6 +56,8 @@ internal static partial class NativeMethods
     public const uint NIF_MESSAGE = 0x00000001;
     public const uint NIF_ICON = 0x00000002;
     public const uint NIF_TIP = 0x00000004;
+    public const uint NIF_INFO = 0x00000010;
+    public const uint NIIF_WARNING = 0x00000002;
 
     // ---- Popup menu ----
     public const uint MF_STRING = 0x00000000;

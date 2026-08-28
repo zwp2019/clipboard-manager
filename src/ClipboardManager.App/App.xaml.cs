@@ -88,10 +88,27 @@ public partial class App : Microsoft.UI.Xaml.Application
             tray.CommandInvoked += OnTrayCommand;
             tray.Start();
 
-            // 全局热键（规范 §28）
+            // 全局热键（规范 §28）：失败时托盘气泡告知用户（常见于热键被占用），并延迟自动重试。
             var hotkeyService = _services.GetRequiredService<IHotkeyService>();
             hotkeyService.HotkeyPressed += OnHotkeyPressed;
-            hotkeyService.Register(settingsService.Current.Hotkey);
+            if (!hotkeyService.Register(settingsService.Current.Hotkey))
+            {
+                tray.ShowBalloon(
+                    "快捷键注册失败",
+                    $"快捷键 {settingsService.Current.Hotkey} 可能被其他程序占用，可在设置中更换；5 秒后将自动重试。");
+
+                var retryTimer = _dispatcherQueue.CreateTimer();
+                retryTimer.Interval = TimeSpan.FromSeconds(5);
+                retryTimer.IsRepeating = false;
+                retryTimer.Tick += (_, _) =>
+                {
+                    if (hotkeyService.Register(settingsService.Current.Hotkey))
+                    {
+                        tray.ShowBalloon("快捷键已恢复", $"快捷键 {settingsService.Current.Hotkey} 注册成功。");
+                    }
+                };
+                retryTimer.Start();
+            }
 
             // 剪贴板管道（规范 §11）
             var pipeline = _services.GetRequiredService<ClipboardPipelineService>();

@@ -38,6 +38,30 @@ public sealed class TrayIconService : ITrayService, IDisposable
         _paused = paused;
     }
 
+    /// <summary>
+    /// 托盘气泡通知（用于热键注册失败等需要用户感知的异常，规范 §28）。
+    /// </summary>
+    public void ShowBalloon(string title, string text)
+    {
+        if (!_running)
+        {
+            return;
+        }
+
+        try
+        {
+            _nid.szInfoTitle = title;
+            _nid.szInfo = text;
+            _nid.dwInfoFlags = NativeMethods.NIIF_WARNING;
+            _nid.uFlags |= NativeMethods.NIF_INFO;
+            NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_MODIFY, ref _nid);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to show tray balloon");
+        }
+    }
+
     public void Start()
     {
         lock (_gate)
