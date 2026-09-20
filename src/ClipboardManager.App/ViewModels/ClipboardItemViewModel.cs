@@ -146,8 +146,24 @@ public partial class ClipboardItemViewModel : ObservableObject
         }
     }
 
-    /// <summary>Dock 卡片顶部背景色（统一使用 App.xaml 类型识别色 Design Token）。</summary>
-    public Brush HeaderBrush => (Brush)Microsoft.UI.Xaml.Application.Current.Resources[TypeBrushKey];
+    /// <summary>Dock 卡片顶部背景色（统一使用 App.xaml 类型识别色 Design Token，静态缓存避免重复查资源字典）。</summary>
+    private static readonly Dictionary<string, Brush> HeaderBrushCache = new();
+
+    public Brush HeaderBrush
+    {
+        get
+        {
+            var key = TypeBrushKey;
+            if (HeaderBrushCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var brush = (Brush)Microsoft.UI.Xaml.Application.Current.Resources[key];
+            HeaderBrushCache[key] = brush;
+            return brush;
+        }
+    }
 
     /// <summary>卡片上展示的内容类型标签（Paste 风格）。</summary>
     public string TypeLabel => Item.Type switch
@@ -162,7 +178,7 @@ public partial class ClipboardItemViewModel : ObservableObject
         _ => "其他",
     };
 
-    /// <summary>卡片上展示的内容摘要（保留多行，最多几行）。</summary>
+    /// <summary>卡片上展示的内容摘要（保留多行，截断至 300 字符避免长文本排版开销）。</summary>
     public string CardPreviewText
     {
         get
@@ -178,7 +194,13 @@ public partial class ClipboardItemViewModel : ObservableObject
             }
 
             var preview = Item.GetPreviewText() ?? string.Empty;
-            return string.IsNullOrWhiteSpace(preview) ? "(空内容)" : preview.Trim();
+            if (string.IsNullOrWhiteSpace(preview))
+            {
+                return "(空内容)";
+            }
+
+            preview = preview.Trim();
+            return preview.Length > 300 ? preview[..300] : preview;
         }
     }
 

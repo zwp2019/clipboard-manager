@@ -3,12 +3,14 @@ using ClipboardManager.App.ViewModels;
 using ClipboardManager.Domain;
 using ClipboardManager.Infrastructure;
 using ClipboardManager.Infrastructure.Interop;
+using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
+using WinRT;
 
 namespace ClipboardManager.App;
 
@@ -20,6 +22,13 @@ public sealed partial class MainWindow : Window
 {
     private readonly AppWindow _appWindow;
     private readonly nint _hwnd;
+
+    /// <summary>DWM 圆角属性是否可用（Win11 为 true）；false 表示 Win10，需用区域裁剪圆角。</summary>
+    private bool _legacyRoundedCorners;
+
+    /// <summary>Acrylic 毛玻璃控制器与配置（KeepAlive 防止被 GC 回收后效果消失）。</summary>
+    private DesktopAcrylicController? _acrylicController;
+    private SystemBackdropConfiguration? _backdropConfiguration;
 
     public LauncherViewModel ViewModel { get; }
 
@@ -76,6 +85,23 @@ public sealed partial class MainWindow : Window
         var borderColor = NativeMethods.DWMWA_COLOR_NONE;
         _ = NativeMethods.DwmSetWindowAttribute(_hwnd, NativeMethods.DWMWA_BORDER_COLOR, ref borderColor, sizeof(uint));
 
+        // 窗口圆角：Win11 走 DWM；失败（Win10 无此属性）则回退为区域裁剪圆角并清除系统浅色 1px 边框。
+        var cornerPreference = NativeMethods.DWMWCP_ROUND;
+        var dwmResult = NativeMethods.DwmSetWindowAttribute(
+            _hwnd,
+            NativeMethods.DWMWA_WINDOW_CORNER_PREFERENCE,
+            ref cornerPreference,
+            sizeof(uint));
+
+        _legacyRoundedCorners = dwmResult != 0;
+        if (_legacyRoundedCorners)
+        {
+            ApplyLegacyRoundedCorners(1200, height, dpi);
+        }
+
+        // Win7 风格毛玻璃：Acrylic 半透明模糊 + 主题着色；不支持时保留实色背景。
+        TryEnableAcrylic();
+
         // 窗口 / 任务栏图标（Assets/app.ico 由 csproj 复制到输出目录）。
         try
         {
@@ -110,6 +136,67 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Win7 风格毛玻璃：Acrylic 半透明模糊背景（深色着色 + 模糊），等效于 Win7 Aero 玻璃。
+    /// 不支持（旧版 Win10 / 驱动限制 / 系统关闭透明效果）时静默回退，保持原有实色背景。
+    /// </summary>
+    private void TryEnableAcrylic()
+    {
+        try
+        {
+            if (!DesktopAcrylicController.IsSupported())
+            {
+                return;
+            }
+
+            _acrylicController = new DesktopAcrylicController
+            {
+                // 深色着色 + 强模糊，呈现明显玻璃质感。
+                TintColor = Windows.UI.Color.FromArgb(255, 28, 28, 30),
+                TintOpacity = 0.55f,
+                LuminosityOpacity = 0.12f,
+            };
+            _backdropConfiguration = new SystemBackdropConfiguration
+            {
+                IsInputActive = true,
+                Theme = SystemBackdropTheme.Dark,
+            };
+            _acrylicController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+            _acrylicController.SetSystemBackdropConfiguration(_backdropConfiguration);
+
+            RootGrid.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        }
+        catch
+        {
+            // 不支持时保留 XAML 中的实色背景。
+        }
+    }
+
+    /// <summary>
+    /// Win10 兼容圆角：DWM 圆角属性仅 Win11 有效，Win10 用区域裁剪实现圆角，
+    /// 并移除系统默认的浅色 1px 窗口边框（DWMWA_BORDER_COLOR 在 Win10 同样无效）。
+    /// 注意：区域裁剪会使 DWM 不再绘制窗口投影。
+    /// </summary>
+    private void ApplyLegacyRoundedCorners(int width, int height, uint dpi)
+    {
+        // 圆角半径按 DPI 换算（约 12 DIP）。
+        var radius = Math.Max(8, (int)Math.Round(12 * dpi / 96.0));
+        var region = NativeMethods.CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2);
+        if (region == nint.Zero)
+        {
+            return;
+        }
+
+        NativeMethods.SetWindowRgn(_hwnd, region, true);
+
+        // 移除系统 1px 浅色边框（GWL_STYLE 低 32 位足够容纳窗口样式标志）。
+        var style = NativeMethods.GetWindowLong(_hwnd, NativeMethods.GWL_STYLE);
+        NativeMethods.SetWindowLong(
+            _hwnd,
+            NativeMethods.GWL_STYLE,
+            style & ~(NativeMethods.WS_BORDER | NativeMethods.WS_DLGFRAME | NativeMethods.WS_THICKFRAME));
+    }
+
+    /// <summary>
     /// 显示在底部居中，贴合屏幕下边缘（Paste 风格 Dock 栏）。
     /// 宽度按当前显示器工作区宽度自适应，高度固定。
     /// 禁止使用 Screen.PrimaryScreen（规范 §49）。
@@ -139,16 +226,21 @@ public sealed partial class MainWindow : Window
         }
 
         var height = (int)Math.Round(290 * dpi / 96.0);
-        const int margin = 24;
 
-        // 宽度占满工作区，留出左右边距；最小 800，最大工作区宽度。
-        var width = Math.Clamp(work.Right - work.Left - margin * 2, 800, work.Right - work.Left);
+        // 宽度占满整个工作区（横向铺满，无侧边间隙）。
+        var width = work.Right - work.Left;
 
-        // 底部居中。
-        var x = work.Left + ((work.Right - work.Left - width) / 2);
+        // 贴底居中。
+        var x = work.Left;
         var y = work.Bottom - height - 12;
 
         NativeMethods.SetWindowPos(_hwnd, nint.Zero, x, y, width, height, NativeMethods.SWP_NOZORDER);
+
+        // Win10：窗口尺寸变化后重新应用区域圆角。
+        if (_legacyRoundedCorners)
+        {
+            ApplyLegacyRoundedCorners(width, height, dpi);
+        }
     }
 
     public void ShowWindow()
@@ -194,6 +286,19 @@ public sealed partial class MainWindow : Window
             // 搜索框内输入 G 会打字，分组需 Ctrl+G；列表聚焦时直接按 G。
             _ = ShowGroupDialogAsync();
             e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// 点击卡片：复制到剪贴板并关闭窗口（快速使用，规范 §29）。
+    /// </summary>
+    private async void HistoryList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is ClipboardItemViewModel item)
+        {
+            ViewModel.SelectedItem = item;
+            await ViewModel.CopySelectedAsync();
+            HideRequested?.Invoke(this, EventArgs.Empty);
         }
     }
 

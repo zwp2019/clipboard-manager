@@ -43,6 +43,9 @@
             <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource ColorSurfaceColor}" />
             <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource ColorSurfaceHoverColor}" />
             <SolidColorBrush x:Key="SurfaceSelectedBrush" Color="{StaticResource ColorSurfaceSelectedColor}" />
+            <!-- 半透明玻璃画刷：叠加在 Acrylic 模糊之上，保留大面积玻璃透出（Win7 Aero 质感） -->
+            <SolidColorBrush x:Key="SurfaceGlassBrush" Color="#D92C2C2E" />
+            <SolidColorBrush x:Key="BackgroundGlassBrush" Color="#731C1C1E" />
             <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource ColorBorderColor}" />
             <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource ColorTextPrimaryColor}" />
             <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource ColorTextSecondaryColor}" />
@@ -93,10 +96,10 @@
             <!-- 半透明悬停叠加（规范 §15：轻微背景变化） -->
             <SolidColorBrush x:Key="HoverOverlayBrush" Color="#14FFFFFF" />
 
-            <!-- 底部 Dock 卡片项：无默认边距，内容撑满；模板提供 Hover / Selected 视觉状态（规范 §15、§16、§59） -->
+            <!-- 底部 Dock 卡片项：右侧留 12px 间距，悬停上浮 + 按压缩放反馈（规范 §15、§16、§59） -->
             <Style x:Key="DockCardItemStyle" TargetType="ListViewItem">
                 <Setter Property="Padding" Value="0" />
-                <Setter Property="Margin" Value="0" />
+                <Setter Property="Margin" Value="0,2,12,2" />
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                 <Setter Property="VerticalContentAlignment" Value="Stretch" />
                 <Setter Property="MinWidth" Value="0" />
@@ -107,13 +110,16 @@
                         <ControlTemplate TargetType="ListViewItem">
                             <Grid RenderTransformOrigin="0.5,0.5">
                                 <Grid.RenderTransform>
-                                    <ScaleTransform x:Name="PressScale" ScaleX="1" ScaleY="1" />
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="PressScale" ScaleX="1" ScaleY="1" />
+                                        <TranslateTransform x:Name="HoverLift" Y="0" />
+                                    </TransformGroup>
                                 </Grid.RenderTransform>
-                                <!-- 卡片底色与描边 -->
+                                <!-- 卡片底色（半透明玻璃，透出 Acrylic 模糊）与描边 -->
                                 <Border
                                     x:Name="ItemBackground"
                                     CornerRadius="{StaticResource CornerRadiusCard}"
-                                    Background="{StaticResource SurfaceBrush}"
+                                    Background="{StaticResource SurfaceGlassBrush}"
                                     BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1" />
                                 <!-- 悬停叠加层 -->
@@ -136,12 +142,46 @@
                                     Opacity="0" />
                                 <VisualStateManager.VisualStateGroups>
                                     <VisualStateGroup x:Name="CommonStates">
-                                        <VisualState x:Name="Normal" />
+                                        <!-- 复位：从 Pressed 返回时缩放回到 1，从悬停返回时上浮归零 -->
+                                        <VisualState x:Name="Normal">
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleX"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleY"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="HoverLift"
+                                                    Storyboard.TargetProperty="Y"
+                                                    To="0"
+                                                    Duration="0:0:0.15" />
+                                            </Storyboard>
+                                        </VisualState>
                                         <VisualState x:Name="PointerOver">
                                             <Storyboard>
                                                 <DoubleAnimation
+                                                    Storyboard.TargetName="HoverLift"
+                                                    Storyboard.TargetProperty="Y"
+                                                    To="-4"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
                                                     Storyboard.TargetName="HoverBackground"
                                                     Storyboard.TargetProperty="Opacity"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleX"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleY"
                                                     To="1"
                                                     Duration="0:0:0.15" />
                                             </Storyboard>
@@ -153,10 +193,30 @@
                                                     Storyboard.TargetProperty="Opacity"
                                                     To="1"
                                                     Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="HoverLift"
+                                                    Storyboard.TargetProperty="Y"
+                                                    To="0"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleX"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleY"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
                                             </Storyboard>
                                         </VisualState>
                                         <VisualState x:Name="PointerOverSelected">
                                             <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="HoverLift"
+                                                    Storyboard.TargetProperty="Y"
+                                                    To="-4"
+                                                    Duration="0:0:0.15" />
                                                 <DoubleAnimation
                                                     Storyboard.TargetName="HoverBackground"
                                                     Storyboard.TargetProperty="Opacity"
@@ -167,20 +227,30 @@
                                                     Storyboard.TargetProperty="Opacity"
                                                     To="1"
                                                     Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleX"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="PressScale"
+                                                    Storyboard.TargetProperty="ScaleY"
+                                                    To="1"
+                                                    Duration="0:0:0.15" />
                                             </Storyboard>
                                         </VisualState>
-                                        <!-- 按压：轻微缩放反馈（规范 §16） -->
+                                        <!-- 按压：轻微缩放回弹（规范 §16） -->
                                         <VisualState x:Name="Pressed">
                                             <Storyboard>
                                                 <DoubleAnimation
                                                     Storyboard.TargetName="PressScale"
                                                     Storyboard.TargetProperty="ScaleX"
-                                                    To="0.98"
+                                                    To="0.97"
                                                     Duration="0:0:0.08" />
                                                 <DoubleAnimation
                                                     Storyboard.TargetName="PressScale"
                                                     Storyboard.TargetProperty="ScaleY"
-                                                    To="0.98"
+                                                    To="0.97"
                                                     Duration="0:0:0.08" />
                                             </Storyboard>
                                         </VisualState>

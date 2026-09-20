@@ -8,8 +8,8 @@
     mc:Ignorable="d"
     Title="剪贴板管理器">
 
-    <!-- Paste 风格：中性深色背景，顶部搜索 + 分类标签，下方横向卡片栏 -->
-    <Grid Background="{StaticResource BackgroundBrush}">
+    <!-- Paste 风格：Acrylic 毛玻璃背景（代码中启用，不支持时回退实色），顶部搜索 + 分类标签，下方横向卡片栏 -->
+    <Grid x:Name="RootGrid" Background="{StaticResource BackgroundBrush}">
 
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -17,8 +17,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ========== 顶部：搜索 + 分类标签栏（规范 §23、§24） ========== -->
-        <Grid Grid.Row="0" Padding="20,12,20,8" ColumnSpacing="12">
+        <!-- ========== 顶部：搜索 + 分类标签栏（规范 §23、§24），半透明玻璃条，毛玻璃透出 ========== -->
+        <Grid Grid.Row="0" Padding="12,12,12,8" ColumnSpacing="12" Background="{StaticResource BackgroundGlassBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -160,31 +160,28 @@
                 ToolTipService.ToolTip="设置" />
         </Grid>
 
-        <!-- ========== 横向滚动卡片列表（规范 §6、§49） ========== -->
-        <ScrollViewer
+        <!-- ========== 横向滚动卡片列表（规范 §6、§49）：ItemsStackPanel 虚拟化，仅实例化可见卡片 ========== -->
+        <ListView
+            x:Name="HistoryList"
             Grid.Row="1"
-            HorizontalScrollMode="Auto"
-            HorizontalScrollBarVisibility="Hidden"
-            VerticalScrollMode="Disabled"
-            VerticalScrollBarVisibility="Disabled"
-            Padding="20,4,20,12">
-            <ListView
-                x:Name="HistoryList"
-                ItemsSource="{x:Bind ViewModel.Items, Mode=OneWay}"
-                SelectedItem="{x:Bind ViewModel.SelectedItem, Mode=TwoWay}"
-                SelectionMode="Single"
-                IsItemClickEnabled="True"
-                DoubleTapped="HistoryList_DoubleTapped"
-                KeyDown="HistoryList_KeyDown"
-                ScrollViewer.HorizontalScrollMode="Disabled"
-                ScrollViewer.VerticalScrollMode="Disabled"
-                ItemContainerStyle="{StaticResource DockCardItemStyle}">
-                <ListView.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="12" />
-                    </ItemsPanelTemplate>
-                </ListView.ItemsPanel>
-                <ListView.ItemTemplate>
+            Padding="12,4,12,12"
+            ItemsSource="{x:Bind ViewModel.Items, Mode=OneWay}"
+            SelectedItem="{x:Bind ViewModel.SelectedItem, Mode=TwoWay}"
+            SelectionMode="Single"
+            IsItemClickEnabled="True"
+            ItemClick="HistoryList_ItemClick"
+            DoubleTapped="HistoryList_DoubleTapped"
+            KeyDown="HistoryList_KeyDown"
+            ScrollViewer.HorizontalScrollMode="Enabled"
+            ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+            ScrollViewer.VerticalScrollMode="Disabled"
+            ItemContainerStyle="{StaticResource DockCardItemStyle}">
+            <ListView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <ItemsStackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ListView.ItemsPanel>
+            <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:ClipboardItemViewModel">
                         <!-- 底色与描边由容器模板（DockCardItemStyle）提供，此处保持透明以显示 Hover/Selected 状态 -->
                         <Border
@@ -334,13 +331,12 @@
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
-        </ScrollViewer>
 
-        <!-- ========== 底部命令提示条（规范 §19） ========== -->
+        <!-- ========== 底部命令提示条（规范 §19），半透明玻璃条，毛玻璃透出 ========== -->
         <Grid
             Grid.Row="2"
-            Padding="20,6,20,10"
-            Background="{StaticResource SurfaceBrush}"
+            Padding="12,6,12,10"
+            Background="{StaticResource SurfaceGlassBrush}"
             BorderThickness="0,1,0,0"
             BorderBrush="{StaticResource BorderBrush}">
             <StackPanel Orientation="Horizontal" Spacing="16">

@@ -186,10 +186,19 @@ public partial class LauncherViewModel : ObservableObject
         await _dispatcher.PostAsync(
             () =>
             {
-                Items = new ObservableCollection<ClipboardItemViewModel>(
-                    results.Select(item => new ClipboardItemViewModel(item, _imageCache)));
                 StatusText = $"{label} · {results.Count} 条";
                 IsSearching = false;
+
+                // 结果集与当前显示一致时复用现有 VM，避免整体重建导致重新实例化与布局闪烁。
+                if (Items.Count == results.Count
+                    && Items.Select(i => i.Item.Id).SequenceEqual(results.Select(r => r.Id)))
+                {
+                    SelectedItem = Items.Count > 0 ? Items[0] : null;
+                    return;
+                }
+
+                Items = new ObservableCollection<ClipboardItemViewModel>(
+                    results.Select(item => new ClipboardItemViewModel(item, _imageCache)));
                 // 列表为空时必须清空选中，避免操作作用于不可见条目。
                 SelectedItem = Items.Count > 0 ? Items[0] : null;
             });

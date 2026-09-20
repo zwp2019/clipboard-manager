@@ -192,12 +192,32 @@ internal static partial class NativeMethods
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(nint hwnd);
 
-    // ---- DWM：窗口边框颜色（规范 §5：无明显传统 Window Border） ----
+    // ---- DWM：窗口圆角与边框颜色（规范 §5：无明显传统 Window Border） ----
+    public const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    public const uint DWMWCP_ROUND = 2;
     public const uint DWMWA_BORDER_COLOR = 34;
     public const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(nint hwnd, uint attr, ref uint value, uint sizeOfValue);
+
+    // ---- Win10 兼容：窗口样式与区域圆角（DWMWA_WINDOW_CORNER_PREFERENCE / DWMWA_BORDER_COLOR 仅 Win11 生效） ----
+    public const int GWL_STYLE = -16;
+    public const int WS_BORDER = 0x00800000;
+    public const int WS_DLGFRAME = 0x00400000;
+    public const int WS_THICKFRAME = 0x00040000;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int GetWindowLong(nint hWnd, int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int SetWindowLong(nint hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("gdi32.dll")]
+    public static extern nint CreateRoundRectRgn(int left, int top, int right, int bottom, int widthEllipse, int heightEllipse);
+
+    [DllImport("user32.dll")]
+    public static extern int SetWindowRgn(nint hWnd, nint hRgn, bool bRedraw);
 
     // ---- Input ----
     [DllImport("user32.dll", SetLastError = true)]
