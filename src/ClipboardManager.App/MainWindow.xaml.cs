@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using ClipboardManager.App.Services;
 using ClipboardManager.App.ViewModels;
 using ClipboardManager.Domain;
 using ClipboardManager.Infrastructure;
@@ -30,6 +31,9 @@ public sealed partial class MainWindow : Window
     private DesktopAcrylicController? _acrylicController;
     private SystemBackdropConfiguration? _backdropConfiguration;
 
+    /// <summary>窗口外点击检测（低级鼠标钩子），窗口显示期间启用。</summary>
+    private readonly OutsideClickDetector _outsideClickDetector;
+
     public LauncherViewModel ViewModel { get; }
 
     /// <summary>窗口当前是否可见（用于快捷键切换显隐）。</summary>
@@ -51,10 +55,15 @@ public sealed partial class MainWindow : Window
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd));
+        _outsideClickDetector = new OutsideClickDetector(() => HideRequested?.Invoke(this, EventArgs.Empty));
         ConfigureWindow();
 
-        // 点击窗口外区域自动隐藏（Paste 风格 launcher 行为）。
+        // 点击窗口外区域自动隐藏（Paste 风格 launcher 行为）：
+        // 失焦事件兜底（Alt+Tab 等），窗口外点击由低级鼠标钩子精确覆盖（任务栏/桌面等不触发失焦的场景）。
         Activated += OnWindowActivated;
+
+        // 全局键盘导航：左右箭头在卡片间移动（handledEventsToo 以覆盖 TextBox 已消费的光标键）。
+        RootGrid.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnGlobalKeyDown), true);
 
         // 首次加载后依据现有分组重建标签栏。
         ((Microsoft.UI.Xaml.FrameworkElement)Content).Loaded += async (_, _) => await RefreshGroupTabsAsync();
@@ -64,7 +73,13 @@ public sealed partial class MainWindow : Window
     {
         if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
+            _outsideClickDetector.Stop();
             HideRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            // 窗口显示（启动激活 / 热键唤起 / 托盘打开）即开始监听窗口外点击。
+            _outsideClickDetector.Start(_hwnd);
         }
     }
 
@@ -251,24 +266,69 @@ public sealed partial class MainWindow : Window
 
     public void HideWindow()
     {
+        _outsideClickDetector.Stop();
         _appWindow.Hide();
     }
 
-    // ---- 键盘操作（规范 §29：↑↓ 选择、Enter 粘贴、Ctrl+C 复制、Esc 关闭）----
+    // ---- 键盘操作（规范 §29：↑↓/←→ 选择、Enter 复制、Ctrl+C 复制、Esc 关闭）----
 
     private static bool IsCtrlDown()
         => Microsoft.UI.Input.InputKeyboardSource
             .GetKeyStateForCurrentThread(VirtualKey.Control)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
+    /// <summary>
+    /// 全局左右箭头导航：焦点在含文本的输入框内时保留光标移动，其余场景用于在卡片间切换选中项。
+    /// </summary>
+    private void OnGlobalKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is not (VirtualKey.Left or VirtualKey.Right))
+        {
+            return;
+        }
+
+        if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(Content.XamlRoot) is TextBox { Text.Length: > 0 })
+        {
+            return;
+        }
+
+        var item = ViewModel.MoveSelection(e.Key == VirtualKey.Left ? -1 : 1);
+        if (item is not null)
+        {
+            HistoryList.ScrollIntoView(item);
+        }
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// 复制选中项并关闭窗口（Enter / 单击卡片的统一行为，规范 §29）。
+    /// </summary>
+    private async Task CopySelectedAndHideAsync()
+    {
+        if (ViewModel.SelectedItem is null)
+        {
+            return;
+        }
+
+        await ViewModel.CopySelectedAsync();
+        HideRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == VirtualKey.Enter)
         {
-            // 搜索框内回车一律执行搜索：有关键词立即搜索，空关键词刷新回最近历史。
-            // 绝不在搜索框内触发"粘贴选中项"（避免误解为程序直接关闭）。
             var query = SearchBox.Text?.Trim() ?? string.Empty;
-            _ = ViewModel.SearchNowAsync(query);
+            if (query.Length == 0)
+            {
+                // 搜索框为空时回车 = 复制当前选中项（与单击卡片一致），方便唤起后直接回车取用。
+                _ = CopySelectedAndHideAsync();
+            }
+            else
+            {
+                // 有关键词时回车一律执行搜索。
+                _ = ViewModel.SearchNowAsync(query);
+            }
             e.Handled = true;
         }
         else if (e.Key == VirtualKey.Escape)
@@ -297,8 +357,7 @@ public sealed partial class MainWindow : Window
         if (e.ClickedItem is ClipboardItemViewModel item)
         {
             ViewModel.SelectedItem = item;
-            await ViewModel.CopySelectedAsync();
-            HideRequested?.Invoke(this, EventArgs.Empty);
+            await CopySelectedAndHideAsync();
         }
     }
 
@@ -309,7 +368,8 @@ public sealed partial class MainWindow : Window
     {
         if (e.Key == VirtualKey.Enter)
         {
-            PasteRequested?.Invoke(this, EventArgs.Empty);
+            // 回车 = 复制当前选中项并关闭（与单击卡片一致）；快速粘贴走双击。
+            _ = CopySelectedAndHideAsync();
             e.Handled = true;
         }
         else if (e.Key == VirtualKey.Escape)

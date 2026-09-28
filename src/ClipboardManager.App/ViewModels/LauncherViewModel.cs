@@ -261,6 +261,23 @@ public partial class LauncherViewModel : ObservableObject
         StatusText = $"已复制 · {SelectedItem.CardTitle}";
     }
 
+    /// <summary>
+    /// 键盘左右方向键在卡片间移动选中项（规范 §29）。offset 为 -1 左移、+1 右移，
+    /// 到达边界时保持不动；无选中项时定位到首项。
+    /// </summary>
+    public ClipboardItemViewModel? MoveSelection(int offset)
+    {
+        if (Items.Count == 0)
+        {
+            return null;
+        }
+
+        var currentIndex = SelectedItem is null ? -1 : Items.IndexOf(SelectedItem);
+        var nextIndex = Math.Clamp(currentIndex + offset, 0, Items.Count - 1);
+        SelectedItem = Items[nextIndex];
+        return SelectedItem;
+    }
+
     /// <summary>全部现有分组名称（分组对话框使用）。</summary>
     public Task<IReadOnlyList<string>> GetGroupNamesAsync()
         => _history.GetGroupNamesAsync(CancellationToken.None);
