@@ -4,7 +4,7 @@
 遵循 [AI_DEVELOPMENT_SPEC.md](./AI_DEVELOPMENT_SPEC.md) 规范开发。
 
 **Fast · Native · Reliable · Private · Beautiful**
-
+![示例图](image.png)
 ## 功能
 
 - 剪贴板监听（原生事件，非轮询）：Text / Image / URL / HTML / RTF / File
