@@ -5,6 +5,11 @@
     <AssemblyName>ClipboardManager.Tests</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!--
+      CA1707：测试方法名用下划线分隔（如 SameHash_WithinWindow_IsDuplicate）
+      是 xUnit 社区通行命名约定，且可读性优于纯 PascalCase，故显式抑制。
+    -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />

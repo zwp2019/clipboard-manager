@@ -8,7 +8,7 @@ namespace ClipboardManager.Application;
 /// 剪贴板处理管道（规范 §11）：Monitor → Reader → Normalizer → Hash → Dedup → Storage。
 /// 负责高频事件合并、排除应用、异常隔离；单个条目失败不影响整个引擎（规范 §43、§45）。
 /// </summary>
-public sealed class ClipboardPipelineService : IDisposable
+public sealed partial class ClipboardPipelineService : IDisposable
 {
     private readonly IClipboardMonitor _monitor;
     private readonly IClipboardReader _reader;
@@ -49,6 +49,27 @@ public sealed class ClipboardPipelineService : IDisposable
         _logger = logger;
     }
 
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Information, Message = "Clipboard pipeline started")]
+        public static partial void PipelineStarted(ILogger logger);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Clipboard pipeline stopped")]
+        public static partial void PipelineStopped(ILogger logger);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Trace, Message = "Ignoring own clipboard write")]
+        public static partial void IgnoringOwnWrite(ILogger logger);
+
+        [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "Skipping clipboard from excluded app {App}")]
+        public static partial void SkippingExcludedApp(ILogger logger, string app);
+
+        [LoggerMessage(EventId = 4, Level = LogLevel.Trace, Message = "Duplicate clipboard content ignored, hash={Hash}")]
+        public static partial void DuplicateIgnored(ILogger logger, string hash);
+
+        [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "Failed to process clipboard change (operation {OperationId})")]
+        public static partial void ProcessFailed(ILogger logger, Exception exception, string operationId);
+    }
+
     public void Start()
     {
         if (_started)
@@ -60,7 +81,7 @@ public sealed class ClipboardPipelineService : IDisposable
         _monitor.ClipboardChanged += OnClipboardChanged;
         _monitor.Start();
         _started = true;
-        _logger.LogInformation("Clipboard pipeline started");
+        Log.PipelineStarted(_logger);
     }
 
     public void Stop()
@@ -76,7 +97,7 @@ public sealed class ClipboardPipelineService : IDisposable
         _cts?.Dispose();
         _cts = null;
         _started = false;
-        _logger.LogInformation("Clipboard pipeline stopped");
+        Log.PipelineStopped(_logger);
     }
 
     private void OnClipboardChanged(object? sender, ClipboardChangedEventArgs e)
@@ -84,7 +105,7 @@ public sealed class ClipboardPipelineService : IDisposable
         // 防死循环：自身写入剪贴板产生的事件直接忽略（规范 §13）。
         if (_guard.IsOwnWrite)
         {
-            _logger.LogTrace("Ignoring own clipboard write");
+            Log.IgnoringOwnWrite(_logger);
             return;
         }
 
@@ -127,7 +148,11 @@ public sealed class ClipboardPipelineService : IDisposable
                 && _settingsService.Current.ExcludedApplications.Any(
                     x => x.Equals(sourceProcessName, StringComparison.OrdinalIgnoreCase)))
             {
-                _logger.LogDebug("Skipping clipboard from excluded app {App}", sourceProcessName);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    Log.SkippingExcludedApp(_logger, sourceProcessName);
+                }
+
                 return;
             }
 
@@ -136,7 +161,12 @@ public sealed class ClipboardPipelineService : IDisposable
             // 高频去重窗口（规范 §15）
             if (_deduplication.IsDuplicateWithinWindow(hash, DateTime.UtcNow))
             {
-                _logger.LogTrace("Duplicate clipboard content ignored, hash={Hash}", ShortHash(hash));
+                if (_logger.IsEnabled(LogLevel.Trace))
+                {
+                    var shortHash = ShortHash(hash);
+                    Log.DuplicateIgnored(_logger, shortHash);
+                }
+
                 return;
             }
 
@@ -153,7 +183,7 @@ public sealed class ClipboardPipelineService : IDisposable
         catch (Exception ex)
         {
             // 单个条目失败不能影响整个引擎（规范 §45）。
-            _logger.LogError(ex, "Failed to process clipboard change (operation {OperationId})", args.OperationId);
+            Log.ProcessFailed(_logger, ex, args.OperationId);
         }
         finally
         {

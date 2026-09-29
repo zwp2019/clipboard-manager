@@ -19,7 +19,7 @@ namespace ClipboardManager.App;
 /// Launcher 主窗口（规范 §24、§29）：无边框、Mica、置顶、底部居中 Dock 弹出。
 /// 业务逻辑保持精简，全部委托 ViewModel（规范 §23）。
 /// </summary>
-public sealed partial class MainWindow : Window
+public sealed partial class MainWindow : Window, IDisposable
 {
     private readonly AppWindow _appWindow;
     private readonly nint _hwnd;
@@ -201,14 +201,22 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        NativeMethods.SetWindowRgn(_hwnd, region, true);
+        // 失败（返回 0，系统未接管该区域）时圆角不生效，但不影响功能，静默忽略。
+        _ = NativeMethods.SetWindowRgn(_hwnd, region, true);
 
         // 移除系统 1px 浅色边框（GWL_STYLE 低 32 位足够容纳窗口样式标志）。
         var style = NativeMethods.GetWindowLong(_hwnd, NativeMethods.GWL_STYLE);
-        NativeMethods.SetWindowLong(
+        _ = NativeMethods.SetWindowLong(
             _hwnd,
             NativeMethods.GWL_STYLE,
             style & ~(NativeMethods.WS_BORDER | NativeMethods.WS_DLGFRAME | NativeMethods.WS_THICKFRAME));
+    }
+
+    /// <summary>释放 Acrylic 毛玻璃控制器（应用退出时由 App 调用）。</summary>
+    public void Dispose()
+    {
+        _acrylicController?.Dispose();
+        _acrylicController = null;
     }
 
     /// <summary>

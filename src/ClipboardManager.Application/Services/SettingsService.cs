@@ -8,7 +8,7 @@ namespace ClipboardManager.Application;
 /// <summary>
 /// 设置服务：强类型加载/保存/更新（规范 §46）。以 JSON 存储于 settings 表。
 /// </summary>
-public sealed class SettingsService : ISettingsService
+public sealed partial class SettingsService : ISettingsService, IDisposable
 {
     private const string SettingsKey = "app_settings";
 
@@ -46,7 +46,7 @@ public sealed class SettingsService : ISettingsService
             }
             catch (JsonException ex)
             {
-                _logger.LogError(ex, "Failed to deserialize settings, falling back to defaults");
+                Log.SettingsDeserializeFailed(_logger, ex);
                 _current = new AppSettings();
             }
 
@@ -97,7 +97,21 @@ public sealed class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to persist settings");
+            Log.SettingsPersistFailed(_logger, ex);
         }
+    }
+
+    public void Dispose()
+    {
+        _gate.Dispose();
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Error, Message = "Failed to deserialize settings, falling back to defaults")]
+        public static partial void SettingsDeserializeFailed(ILogger logger, Exception exception);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Failed to persist settings")]
+        public static partial void SettingsPersistFailed(ILogger logger, Exception exception);
     }
 }

@@ -7,7 +7,7 @@ namespace ClipboardManager.Data;
 /// </summary>
 public sealed class MigrationRunner
 {
-    public void Migrate(SqliteConnection connection)
+    public static void Migrate(SqliteConnection connection)
     {
         using (var command = connection.CreateCommand())
         {

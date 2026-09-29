@@ -11,7 +11,7 @@ namespace ClipboardManager.Infrastructure;
 /// 系统托盘服务：Shell_NotifyIcon 原生实现（规范 §31）。
 /// 图标运行时绘制（GDI+），避免依赖二进制图标资源。
 /// </summary>
-public sealed class TrayIconService : ITrayService, IDisposable
+public sealed partial class TrayIconService : ITrayService, IDisposable
 {
     private readonly CoreHostWindow _hostWindow;
     private readonly ILogger<TrayIconService> _logger;
@@ -58,7 +58,7 @@ public sealed class TrayIconService : ITrayService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to show tray balloon");
+            Log.BalloonFailed(_logger, ex);
         }
     }
 
@@ -88,11 +88,11 @@ public sealed class TrayIconService : ITrayService, IDisposable
 
             if (!NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, ref _nid))
             {
-                _logger.LogWarning("Shell_NotifyIcon add failed, error={Code}", Marshal.GetLastPInvokeError());
+                Log.NotifyIconAddFailed(_logger, Marshal.GetLastPInvokeError());
             }
 
             _running = true;
-            _logger.LogDebug("Tray icon started");
+            Log.TrayStarted(_logger);
         }
     }
 
@@ -115,7 +115,7 @@ public sealed class TrayIconService : ITrayService, IDisposable
             }
 
             _running = false;
-            _logger.LogDebug("Tray icon stopped");
+            Log.TrayStopped(_logger);
         }
     }
 
@@ -235,5 +235,23 @@ public sealed class TrayIconService : ITrayService, IDisposable
     public void Dispose()
     {
         Stop();
+    }
+
+    /// <summary>
+    /// 源生成日志方法，避免 CA1848/CA1873。
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Warning, Message = "Failed to show tray balloon")]
+        public static partial void BalloonFailed(ILogger logger, Exception exception);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Shell_NotifyIcon add failed, error={Code}")]
+        public static partial void NotifyIconAddFailed(ILogger logger, int code);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Tray icon started")]
+        public static partial void TrayStarted(ILogger logger);
+
+        [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "Tray icon stopped")]
+        public static partial void TrayStopped(ILogger logger);
     }
 }

@@ -8,7 +8,7 @@ namespace ClipboardManager.Application;
 /// <summary>
 /// 存储编排服务：图片落盘、去重、入库、搜索索引、历史上限控制（规范 §11、§15、§20）。
 /// </summary>
-public sealed class ClipboardStorageService : IClipboardStorageService
+public sealed partial class ClipboardStorageService : IClipboardStorageService
 {
     private readonly IClipboardItemRepository _repository;
     private readonly IImageStorageService _imageStorage;
@@ -46,7 +46,11 @@ public sealed class ClipboardStorageService : IClipboardStorageService
         if (existing is not null && _settingsService.Current.EnableDeduplication)
         {
             await _repository.TouchAsync(existing.Id, ct);
-            _logger.LogDebug("Dedup hit for hash {Hash}, touched item {Id}", item.Hash[..Math.Min(12, item.Hash.Length)], existing.Id);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                Log.DedupHit(_logger, item.Hash[..Math.Min(12, item.Hash.Length)], existing.Id);
+            }
+
             return existing;
         }
 
@@ -69,7 +73,7 @@ public sealed class ClipboardStorageService : IClipboardStorageService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Trim to max history failed");
+            Log.TrimFailed(_logger, ex);
         }
 
         return item;
@@ -89,5 +93,14 @@ public sealed class ClipboardStorageService : IClipboardStorageService
     internal static string SerializeFilePaths(IReadOnlyList<string> paths)
     {
         return JsonSerializer.Serialize(paths);
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Debug, Message = "Dedup hit for hash {Hash}, touched item {Id}")]
+        public static partial void DedupHit(ILogger logger, string hash, long id);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Trim to max history failed")]
+        public static partial void TrimFailed(ILogger logger, Exception exception);
     }
 }

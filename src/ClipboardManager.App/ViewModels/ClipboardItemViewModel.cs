@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text.Json;
 using ClipboardManager.Contracts;
@@ -261,7 +262,7 @@ public partial class ClipboardItemViewModel : ObservableObject
                 return "昨天";
             }
 
-            return Item.CreatedAt.ToString("MM-dd HH:mm");
+            return Item.CreatedAt.ToString("MM-dd HH:mm", CultureInfo.InvariantCulture);
         }
     }
 

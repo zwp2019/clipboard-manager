@@ -9,7 +9,7 @@ namespace ClipboardManager.App.ViewModels;
 /// <summary>
 /// Launcher 主窗口 ViewModel：搜索（Debounce + 取消旧查询）、历史、收藏、快速粘贴（规范 §27、§29）。
 /// </summary>
-public partial class LauncherViewModel : ObservableObject
+public partial class LauncherViewModel : ObservableObject, IDisposable
 {
     private const int PageSize = 80;
 
@@ -334,5 +334,6 @@ public partial class LauncherViewModel : ObservableObject
         _debouncer.Dispose();
         _searchCts?.Cancel();
         _searchCts?.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

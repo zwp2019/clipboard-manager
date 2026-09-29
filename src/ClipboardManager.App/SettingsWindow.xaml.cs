@@ -1,3 +1,4 @@
+using System.Globalization;
 using ClipboardManager.App.ViewModels;
 using ClipboardManager.Contracts;
 using ClipboardManager.Infrastructure;
@@ -86,7 +87,7 @@ public sealed partial class SettingsWindow : Window
     {
         if (key >= VirtualKey.Number0 && key <= VirtualKey.Number9)
         {
-            return ((int)(key - VirtualKey.Number0)).ToString();
+            return ((int)(key - VirtualKey.Number0)).ToString(CultureInfo.InvariantCulture);
         }
 
         if (key >= VirtualKey.A && key <= VirtualKey.Z)

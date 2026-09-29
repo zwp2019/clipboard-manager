@@ -14,7 +14,7 @@ namespace ClipboardManager.App;
 /// 应用入口：DI 组装、单实例、启动服务、托盘与热键接线（规范 §33、§31、§28）。
 /// 启动阶段只做：初始化、注册热键、启动监听、创建窗口（规范 §33）。
 /// </summary>
-public partial class App : Microsoft.UI.Xaml.Application
+public partial class App : Microsoft.UI.Xaml.Application, IDisposable
 {
     private const string SingleInstanceMutexName = "Local\\ClipboardManager.SingleInstance";
 
@@ -53,7 +53,8 @@ public partial class App : Microsoft.UI.Xaml.Application
                 Path.Combine(paths.Logs, "clipboard-.log"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 14,
-                fileSizeLimitBytes: 10 * 1024 * 1024)
+                fileSizeLimitBytes: 10 * 1024 * 1024,
+                formatProvider: System.Globalization.CultureInfo.InvariantCulture)
             .CreateLogger();
 
         _services = BuildServices(paths);
@@ -129,7 +130,7 @@ public partial class App : Microsoft.UI.Xaml.Application
             _ = _mainWindow.ViewModel.RefreshAsync();
             RootElement = _mainWindow.Content as FrameworkElement;
 
-            _logger.LogInformation("Clipboard Manager started");
+            LogMessages.Started(_logger);
         }
         catch (Exception ex)
         {
@@ -138,7 +139,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
     }
 
-    private ServiceProvider BuildServices(AppPaths paths)
+    private static ServiceProvider BuildServices(AppPaths paths)
     {
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddSerilog(dispose: true));
@@ -193,8 +194,18 @@ public partial class App : Microsoft.UI.Xaml.Application
     {
         var settings = _services!.GetRequiredService<ISettingsService>();
         settings.Update(s => s.PauseMonitoring = paused);
-        _services.GetRequiredService<TrayIconService>().SetPaused(paused);
-        _logger?.LogInformation(paused ? "Monitoring paused" : "Monitoring resumed");
+        _services!.GetRequiredService<TrayIconService>().SetPaused(paused);
+        if (_logger is not null)
+        {
+            if (paused)
+            {
+                LogMessages.MonitoringPaused(_logger);
+            }
+            else
+            {
+                LogMessages.MonitoringResumed(_logger);
+            }
+        }
     }
 
     private async Task ConfirmAndClearHistoryAsync()
@@ -217,7 +228,10 @@ public partial class App : Microsoft.UI.Xaml.Application
         if (await dialog.ShowAsync() == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary)
         {
             await _services!.GetRequiredService<IHistoryService>().ClearAsync(CancellationToken.None);
-            _logger?.LogInformation("Clipboard history cleared");
+            if (_logger is not null)
+            {
+                LogMessages.HistoryCleared(_logger);
+            }
         }
     }
 
@@ -271,6 +285,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         {
             _services?.GetRequiredService<ClipboardPipelineService>().Stop();
             _services?.GetRequiredService<ITrayService>().Stop();
+            _mainWindow?.Dispose();
             Log.Logger.Information("Clipboard Manager exited");
         }
         catch (Exception ex)
@@ -279,9 +294,20 @@ public partial class App : Microsoft.UI.Xaml.Application
         }
         finally
         {
+            Dispose();
             Log.CloseAndFlush();
             Exit();
         }
+    }
+
+    /// <summary>
+    /// 释放单实例互斥体。服务容器与其余资源由进程退出时统一回收，日志已由 ExitApplication 关闭。
+    /// </summary>
+    public void Dispose()
+    {
+        _singleInstanceMutex?.Dispose();
+        _singleInstanceMutex = null;
+        GC.SuppressFinalize(this);
     }
 
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
@@ -289,5 +315,24 @@ public partial class App : Microsoft.UI.Xaml.Application
         // 单条异常不退出，记录后继续（规范 §43）。
         Log.Logger.Error(e.Exception, "Unhandled exception");
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// 源生成日志方法（避免与 Serilog 的静态 Log 类重名，故命名为 LogMessages）。
+    /// 参数类型需完整限定：本文件同时 using Serilog，ILogger 存在歧义。
+    /// </summary>
+    private static partial class LogMessages
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Information, Message = "Clipboard Manager started")]
+        public static partial void Started(Microsoft.Extensions.Logging.ILogger logger);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Monitoring paused")]
+        public static partial void MonitoringPaused(Microsoft.Extensions.Logging.ILogger logger);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Monitoring resumed")]
+        public static partial void MonitoringResumed(Microsoft.Extensions.Logging.ILogger logger);
+
+        [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Clipboard history cleared")]
+        public static partial void HistoryCleared(Microsoft.Extensions.Logging.ILogger logger);
     }
 }

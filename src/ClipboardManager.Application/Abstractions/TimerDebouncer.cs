@@ -13,10 +13,7 @@ public sealed class TimerDebouncer : IDebouncer
 
     public void Debounce(Action action, int delayMilliseconds)
     {
-        if (action is null)
-        {
-            throw new ArgumentNullException(nameof(action));
-        }
+        ArgumentNullException.ThrowIfNull(action);
 
         lock (_gate)
         {

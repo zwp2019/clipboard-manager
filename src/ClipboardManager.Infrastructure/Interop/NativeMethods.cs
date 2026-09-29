@@ -249,7 +249,7 @@ internal static partial class NativeMethods
     public static extern nint CreatePopupMenu();
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    public static extern bool AppendMenuW(nint hMenu, uint uFlags, nuint uIDNewItem, string lpNewItem);
+    public static extern bool AppendMenuW(nint hMenu, uint uFlags, nuint uIDNewItem, string? lpNewItem);
 
     [DllImport("user32.dll")]
     public static extern bool TrackPopupMenu(nint hMenu, uint uFlags, int x, int y, int nReserved, nint hWnd, nint prcRect);
@@ -344,7 +344,7 @@ internal static partial class NativeMethods
         public nint hCursor;
         public nint hbrBackground;
         [MarshalAs(UnmanagedType.LPWStr)]
-        public string lpszMenuName;
+        public string? lpszMenuName;
         [MarshalAs(UnmanagedType.LPWStr)]
         public string lpszClassName;
     }

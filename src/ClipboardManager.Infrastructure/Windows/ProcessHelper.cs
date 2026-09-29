@@ -28,8 +28,8 @@ public static class ProcessHelper
         }
 
         var buffer = new char[length + 1];
-        NativeMethods.GetWindowTextW(windowHandle, buffer, buffer.Length);
-        return new string(buffer).TrimEnd('\0');
+        var copied = NativeMethods.GetWindowTextW(windowHandle, buffer, buffer.Length);
+        return copied > 0 ? new string(buffer, 0, copied) : null;
     }
 
     /// <summary>
@@ -99,7 +99,9 @@ public static class ProcessHelper
         var ctrlUp = CreateKeyInput(NativeMethods.VK_CONTROL, true);
 
         var inputs = new[] { ctrlDown, vDown, vUp, ctrlUp };
-        NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
+
+        // 返回值忽略：注入失败（如目标窗口权限更高）不阻断主流程（规范 §30）。
+        _ = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
     }
 
     private static NativeMethods.INPUT CreateKeyInput(ushort virtualKey, bool keyUp)

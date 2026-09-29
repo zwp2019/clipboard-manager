@@ -14,6 +14,13 @@
     <EnableMsixTooling>false</EnableMsixTooling>
     <UseWinUI>true</UseWinUI>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!--
+      MVVMTK0045：建议把 [ObservableProperty] 从字段改为 partial property。
+      该迁移要求 <LangVersion>preview</LangVersion>（生成代码使用 field 关键字），
+      本解决方案统一使用 latest，且项目未启用 Native AOT，故此处显式抑制。
+      若将来启用 AOT，应改为 partial property 并启用 preview 语言版本。
+    -->
+    <NoWarn>$(NoWarn);MVVMTK0045</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <None Include="Assets\app.ico" CopyToOutputDirectory="PreserveNewest" />

@@ -11,7 +11,7 @@ namespace ClipboardManager.Infrastructure;
 /// 剪贴板读取器：读取 Text / HTML / RTF / URL / File / Image（规范 §11、§65）。
 /// 含重试机制，应对剪贴板被其他应用锁定的场景（规范 §44）。
 /// </summary>
-public sealed class ClipboardReader : IClipboardReader
+public sealed partial class ClipboardReader : IClipboardReader
 {
     private const int MaxAttempts = 4;
 
@@ -66,7 +66,7 @@ public sealed class ClipboardReader : IClipboardReader
             }
         }
 
-        _logger.LogWarning(lastError, "Clipboard read failed after {MaxAttempts} attempts", MaxAttempts);
+        Log.ReadFailed(_logger, lastError, MaxAttempts);
         return null;
     }
 
@@ -125,7 +125,7 @@ public sealed class ClipboardReader : IClipboardReader
         };
     }
 
-    private string? ReadUtf16Text(uint format)
+    private static string? ReadUtf16Text(uint format)
     {
         if (!NativeMethods.IsClipboardFormatAvailable(format))
         {
@@ -149,7 +149,7 @@ public sealed class ClipboardReader : IClipboardReader
         }
     }
 
-    private string? ReadFormatText(int format)
+    private static string? ReadFormatText(int format)
     {
         if (format == 0 || !NativeMethods.IsClipboardFormatAvailable((uint)format))
         {
@@ -199,7 +199,7 @@ public sealed class ClipboardReader : IClipboardReader
         return index >= 0 ? html[index..] : html;
     }
 
-    private IReadOnlyList<string>? ReadFileDrop()
+    private static List<string>? ReadFileDrop()
     {
         if (!NativeMethods.IsClipboardFormatAvailable(NativeMethods.CF_HDROP))
         {
@@ -331,7 +331,7 @@ public sealed class ClipboardReader : IClipboardReader
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to decode DIB image");
+                    Log.DibDecodeFailed(_logger, ex);
                 }
             }
         }
@@ -339,7 +339,7 @@ public sealed class ClipboardReader : IClipboardReader
         return null;
     }
 
-    private byte[]? ReadRawData(uint format)
+    private static byte[]? ReadRawData(uint format)
     {
         var hGlobal = NativeMethods.GetClipboardData(format);
         if (hGlobal == nint.Zero)
@@ -429,5 +429,17 @@ public sealed class ClipboardReader : IClipboardReader
         }
 
         return total;
+    }
+
+    /// <summary>
+    /// 源生成日志方法，避免 CA1848/CA1873。
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Warning, Message = "Clipboard read failed after {MaxAttempts} attempts")]
+        public static partial void ReadFailed(ILogger logger, Exception? exception, int maxAttempts);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Failed to decode DIB image")]
+        public static partial void DibDecodeFailed(ILogger logger, Exception exception);
     }
 }

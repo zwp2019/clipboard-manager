@@ -12,7 +12,7 @@ namespace ClipboardManager.Infrastructure.Notifications;
 /// 屏幕底部居中淡入淡出；置顶、不抢焦点、不接收输入（分层窗口自绘实现）。
 /// 通知失败只记录日志，绝不影响剪贴板主流程（规范 §45）。
 /// </summary>
-public sealed class OverlayToastService : INotificationService
+public sealed partial class OverlayToastService : INotificationService, IDisposable
 {
     private const int MaxPreviewLength = 80;
     private const int VisibleMilliseconds = 1500;
@@ -47,7 +47,7 @@ public sealed class OverlayToastService : INotificationService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to show capture toast");
+                Log.ShowToastFailed(_logger, ex);
             }
         });
     }
@@ -106,7 +106,7 @@ public sealed class OverlayToastService : INotificationService
 
         if (!_windowReady)
         {
-            _logger.LogWarning("Failed to create toast overlay window");
+            Log.OverlayWindowCreateFailed(_logger);
         }
     }
 
@@ -229,7 +229,8 @@ public sealed class OverlayToastService : INotificationService
         }
         finally
         {
-            ReleaseDC(nint.Zero, screenDc);
+            // 返回值无需处理，仅归还屏幕 DC。
+            _ = ReleaseDC(nint.Zero, screenDc);
         }
     }
 
@@ -375,4 +376,21 @@ public sealed class OverlayToastService : INotificationService
     private static extern bool UpdateLayeredWindow(
         nint hWnd, nint hdcDst, ref NativePoint pptDst, ref NativeSize pSize,
         nint hdcSrc, ref NativePoint pptSrc, uint crKey, ref BlendFunction blend, uint flags);
+
+    public void Dispose()
+    {
+        _showCts?.Dispose();
+    }
+
+    /// <summary>
+    /// 源生成日志方法，避免 CA1848/CA1873。
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Warning, Message = "Failed to show capture toast")]
+        public static partial void ShowToastFailed(ILogger logger, Exception exception);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Failed to create toast overlay window")]
+        public static partial void OverlayWindowCreateFailed(ILogger logger);
+    }
 }

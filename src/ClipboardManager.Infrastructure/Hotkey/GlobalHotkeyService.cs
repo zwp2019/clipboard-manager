@@ -8,7 +8,7 @@ namespace ClipboardManager.Infrastructure;
 /// <summary>
 /// 全局热键服务：RegisterHotKey 原生实现，支持注册失败检测（规范 §28）。
 /// </summary>
-public sealed class GlobalHotkeyService : IHotkeyService
+public sealed partial class GlobalHotkeyService : IHotkeyService
 {
     private const int HotkeyId = 1001;
 
@@ -32,7 +32,7 @@ public sealed class GlobalHotkeyService : IHotkeyService
 
         if (!HotkeyParser.TryParse(hotkey, out var modifiers, out var virtualKey, out var error))
         {
-            _logger.LogWarning("Invalid hotkey {Hotkey}: {Error}", hotkey, error);
+            Log.InvalidHotkey(_logger, hotkey, error);
             return false;
         }
 
@@ -41,16 +41,13 @@ public sealed class GlobalHotkeyService : IHotkeyService
         if (!ok)
         {
             // 注册失败：可能与其他应用冲突（规范 §28 冲突检测）。
-            _logger.LogWarning(
-                "RegisterHotKey failed for {Hotkey}, error={Code}",
-                hotkey,
-                Marshal.GetLastPInvokeError());
+            Log.RegisterHotkeyFailed(_logger, hotkey, Marshal.GetLastPInvokeError());
             return false;
         }
 
         _hostWindow.HotkeyPressed += OnHotkeyPressed;
         IsRegistered = true;
-        _logger.LogInformation("Global hotkey registered: {Hotkey}", hotkey);
+        Log.HotkeyRegistered(_logger, hotkey);
         return true;
     }
 
@@ -71,4 +68,19 @@ public sealed class GlobalHotkeyService : IHotkeyService
 
     private void OnHotkeyPressed(object? sender, EventArgs e)
         => HotkeyPressed?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// 源生成日志方法，避免 CA1848/CA1873。
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Warning, Message = "Invalid hotkey {Hotkey}: {Error}")]
+        public static partial void InvalidHotkey(ILogger logger, string hotkey, string? error);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "RegisterHotKey failed for {Hotkey}, error={Code}")]
+        public static partial void RegisterHotkeyFailed(ILogger logger, string hotkey, int code);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Global hotkey registered: {Hotkey}")]
+        public static partial void HotkeyRegistered(ILogger logger, string hotkey);
+    }
 }

@@ -7,7 +7,7 @@ namespace ClipboardManager.Application;
 /// 历史过期后台清理服务（规范 §40）。
 /// 启动后每 60 分钟执行一次清理；首次清理延迟 2 分钟，避免影响启动速度（规范 §33）。
 /// </summary>
-public sealed class HistoryCleanupService : IHistoryCleanupService
+public sealed partial class HistoryCleanupService : IHistoryCleanupService
 {
     private readonly IClipboardItemRepository _repository;
     private readonly ISettingsService _settingsService;
@@ -29,8 +29,8 @@ public sealed class HistoryCleanupService : IHistoryCleanupService
     public Task StartAsync(CancellationToken ct)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _loop = Task.Run(() => CleanupLoopAsync(_cts.Token));
-        _logger.LogInformation("History cleanup service started");
+        _loop = Task.Run(() => CleanupLoopAsync(_cts.Token), ct);
+        Log.CleanupServiceStarted(_logger);
         return Task.CompletedTask;
     }
 
@@ -68,7 +68,7 @@ public sealed class HistoryCleanupService : IHistoryCleanupService
                 catch (Exception ex)
                 {
                     // 清理失败不影响运行，下一轮重试（规范 §43、§45）。
-                    _logger.LogError(ex, "History cleanup pass failed");
+                    Log.CleanupPassFailed(_logger, ex);
                 }
 
                 await Task.Delay(TimeSpan.FromMinutes(60), ct);
@@ -91,7 +91,10 @@ public sealed class HistoryCleanupService : IHistoryCleanupService
             var removed = await _repository.DeleteOlderThanAsync(cutoff, ct);
             if (removed > 0)
             {
-                _logger.LogInformation("Cleaned {Count} expired clipboard items", removed);
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    Log.CleanedExpiredItems(_logger, removed);
+                }
             }
         }
 
@@ -100,5 +103,17 @@ public sealed class HistoryCleanupService : IHistoryCleanupService
         {
             await _repository.TrimToLimitAsync(settings.MaxHistoryItems, ct);
         }
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Information, Message = "History cleanup service started")]
+        public static partial void CleanupServiceStarted(ILogger logger);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "History cleanup pass failed")]
+        public static partial void CleanupPassFailed(ILogger logger, Exception exception);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Cleaned {Count} expired clipboard items")]
+        public static partial void CleanedExpiredItems(ILogger logger, int count);
     }
 }

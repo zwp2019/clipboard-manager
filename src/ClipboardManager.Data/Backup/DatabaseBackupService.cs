@@ -8,7 +8,7 @@ namespace ClipboardManager.Data;
 /// 数据库备份/恢复（规范 §16、§46）。
 /// 备份：VACUUM INTO 生成一致性快照；恢复：校验后替换当前库（需调用方暂停写入）。
 /// </summary>
-public sealed class DatabaseBackupService : IBackupService
+public sealed partial class DatabaseBackupService : IBackupService
 {
     private readonly SqliteConnectionFactory _factory;
     private readonly ILogger<DatabaseBackupService> _logger;
@@ -33,7 +33,10 @@ public sealed class DatabaseBackupService : IBackupService
         using var command = connection.CreateCommand();
         command.CommandText = $"VACUUM INTO '{escaped}'";
         await command.ExecuteNonQueryAsync(ct);
-        _logger.LogInformation("Backup created at {Path}", backupPath);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            Log.BackupCreated(_logger, backupPath);
+        }
         return backupPath;
     }
 
@@ -59,6 +62,21 @@ public sealed class DatabaseBackupService : IBackupService
 
         // 调用方需确保当前无活跃写入（恢复前停止 Pipeline）。
         File.Copy(backupFilePath, _factory.DatabaseFilePath, overwrite: true);
-        _logger.LogInformation("Database restored from {Path}", backupFilePath);
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            Log.Restored(_logger, backupFilePath);
+        }
+    }
+
+    /// <summary>
+    /// 源生成日志方法，避免 CA1848/CA1873（规范 §16）。
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Information, Message = "Backup created at {Path}")]
+        public static partial void BackupCreated(ILogger logger, string path);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Database restored from {Path}")]
+        public static partial void Restored(ILogger logger, string path);
     }
 }

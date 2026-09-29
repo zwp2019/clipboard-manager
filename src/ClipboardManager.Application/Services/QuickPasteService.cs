@@ -7,7 +7,7 @@ namespace ClipboardManager.Application;
 /// <summary>
 /// 快速粘贴服务（规范 §30）：写剪贴板 → 激活前一个窗口 → 发送 Ctrl+V。
 /// </summary>
-public sealed class QuickPasteService : IQuickPasteService
+public sealed partial class QuickPasteService : IQuickPasteService
 {
     private readonly IClipboardWriter _writer;
     private readonly IWindowActivator _windowActivator;
@@ -24,6 +24,15 @@ public sealed class QuickPasteService : IQuickPasteService
         _windowActivator = windowActivator;
         _inputSimulator = inputSimulator;
         _logger = logger;
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Information, Message = "Quick paste executed for item {ItemId} ({Type})")]
+        public static partial void PasteExecuted(ILogger logger, long itemId, ClipboardType type);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "Quick paste failed for item {ItemId}")]
+        public static partial void PasteFailed(ILogger logger, Exception exception, long itemId);
     }
 
     public async Task<bool> PasteAsync(ClipboardItem item, nint targetWindowHandle, CancellationToken ct)
@@ -48,12 +57,16 @@ public sealed class QuickPasteService : IQuickPasteService
             // 3. 发送粘贴快捷键
             _inputSimulator.SendPaste();
 
-            _logger.LogInformation("Quick paste executed for item {ItemId} ({Type})", item.Id, item.Type);
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                Log.PasteExecuted(_logger, item.Id, item.Type);
+            }
+
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Quick paste failed for item {ItemId}", item.Id);
+            Log.PasteFailed(_logger, ex, item.Id);
             return false;
         }
     }

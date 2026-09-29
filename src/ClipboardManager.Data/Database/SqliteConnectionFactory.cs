@@ -18,6 +18,8 @@ public sealed class SqliteConnectionFactory
 
     public SqliteConnectionFactory(string databaseFilePath)
     {
+        DatabaseFilePath = databaseFilePath;
+
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = databaseFilePath,
@@ -28,6 +30,7 @@ public sealed class SqliteConnectionFactory
         _connectionString = builder.ToString();
     }
 
+    /// <summary>数据库文件完整路径（备份恢复时作为覆盖目标）。</summary>
     public string DatabaseFilePath { get; }
 
     public SqliteConnection CreateConnection()

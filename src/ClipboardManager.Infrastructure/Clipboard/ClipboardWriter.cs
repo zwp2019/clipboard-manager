@@ -12,7 +12,7 @@ namespace ClipboardManager.Infrastructure;
 /// 剪贴板写入器：快速粘贴时写入剪贴板，并标记内部操作防死循环（规范 §13、§30）。
 /// 写入含重试，应对剪贴板锁定（规范 §44）。
 /// </summary>
-public sealed class ClipboardWriter : IClipboardWriter
+public sealed partial class ClipboardWriter : IClipboardWriter
 {
     private const int MaxAttempts = 3;
 
@@ -28,7 +28,7 @@ public sealed class ClipboardWriter : IClipboardWriter
         _logger = logger;
     }
 
-    public async Task WriteAsync(ClipboardItem item, string operationId, CancellationToken ct)
+    public async Task WriteAsync(ClipboardItem item, string operationId, CancellationToken cancellationToken)
     {
         await Task.Run(
             () =>
@@ -38,7 +38,7 @@ public sealed class ClipboardWriter : IClipboardWriter
 
                 for (var attempt = 1; attempt <= MaxAttempts; attempt++)
                 {
-                    if (ct.IsCancellationRequested)
+                    if (cancellationToken.IsCancellationRequested)
                     {
                         FreeHandles(hGlobalCopies);
                         return;
@@ -54,14 +54,14 @@ public sealed class ClipboardWriter : IClipboardWriter
                     {
                         NativeMethods.EmptyClipboard();
                         WriteFormats(item, hGlobalCopies);
-                        _logger.LogTrace("Clipboard written: {Type} (operation {OperationId})", item.Type, operationId);
+                        Log.ClipboardWritten(_logger, item.Type, operationId);
                         return;
                     }
                     catch (Exception ex)
                     {
                         // 空剪贴板后再失败：清空并释放内存句柄。
                         FreeHandles(hGlobalCopies);
-                        _logger.LogWarning(ex, "Clipboard write attempt {Attempt} failed", attempt);
+                        Log.WriteAttemptFailed(_logger, ex, attempt);
                         if (attempt == MaxAttempts)
                         {
                             throw;
@@ -75,7 +75,7 @@ public sealed class ClipboardWriter : IClipboardWriter
                     }
                 }
             },
-            ct);
+            cancellationToken);
     }
 
     private void WriteFormats(ClipboardItem item, List<nint> handles)
@@ -90,7 +90,7 @@ public sealed class ClipboardWriter : IClipboardWriter
 
             case ClipboardType.Html:
                 SetUnicodeText(item.Text, handles);
-                SetHtml(item.Html ?? item.Text, handles);
+                SetHtml(item.Html ?? item.Text ?? string.Empty, handles);
                 break;
 
             case ClipboardType.Rtf:
@@ -150,11 +150,11 @@ public sealed class ClipboardWriter : IClipboardWriter
         if (NativeMethods.SetClipboardData(NativeMethods.CF_BITMAP, hBitmap) == nint.Zero)
         {
             NativeMethods.DeleteObject(hBitmap);
-            _logger.LogWarning("SetClipboardData(CF_BITMAP) failed, error={Code}", Marshal.GetLastPInvokeError());
+            Log.SetBitmapFailed(_logger, Marshal.GetLastPInvokeError());
         }
     }
 
-    private void SetFileDrop(string? filePathsJson, List<nint> handles)
+    private static void SetFileDrop(string? filePathsJson, List<nint> handles)
     {
         if (string.IsNullOrEmpty(filePathsJson))
         {
@@ -212,7 +212,7 @@ public sealed class ClipboardWriter : IClipboardWriter
         handles.Add(hMem);
         if (NativeMethods.SetClipboardData(format, hMem) == nint.Zero)
         {
-            _logger.LogWarning("SetClipboardData format {Format} failed, error={Code}", format, Marshal.GetLastPInvokeError());
+            Log.SetFormatFailed(_logger, format, Marshal.GetLastPInvokeError());
         }
     }
 
@@ -246,5 +246,23 @@ public sealed class ClipboardWriter : IClipboardWriter
     static ClipboardWriter()
     {
         RtfFormat = NativeMethods.RegisterClipboardFormatW("Rich Text Format");
+    }
+
+    /// <summary>
+    /// 源生成日志方法，避免 CA1848/CA1873。
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Trace, Message = "Clipboard written: {Type} (operation {OperationId})")]
+        public static partial void ClipboardWritten(ILogger logger, ClipboardType type, string operationId);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Clipboard write attempt {Attempt} failed")]
+        public static partial void WriteAttemptFailed(ILogger logger, Exception exception, int attempt);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "SetClipboardData(CF_BITMAP) failed, error={Code}")]
+        public static partial void SetBitmapFailed(ILogger logger, int code);
+
+        [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "SetClipboardData format {Format} failed, error={Code}")]
+        public static partial void SetFormatFailed(ILogger logger, uint format, int code);
     }
 }

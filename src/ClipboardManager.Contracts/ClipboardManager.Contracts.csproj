@@ -3,6 +3,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>ClipboardManager.Contracts</RootNamespace>
     <AssemblyName>ClipboardManager.Contracts</AssemblyName>
+    <!--
+      CA1716：接口成员名 Stop / 参数名 error 与 VB 等语言保留字冲突。
+      本方案为纯 C# 的 Windows 桌面应用，不考虑跨语言消费者，故显式抑制。
+    -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ClipboardManager.Domain\ClipboardManager.Domain.csproj" />

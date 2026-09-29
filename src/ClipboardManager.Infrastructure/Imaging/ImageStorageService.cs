@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Globalization;
 using ClipboardManager.Contracts;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +14,7 @@ namespace ClipboardManager.Infrastructure;
 ///   AppData/Images/{yyyyMM}/xxx.png
 ///   AppData/Thumbnails/{yyyyMM}/xxx.png
 /// </summary>
-public sealed class ImageStorageService : IImageStorageService
+public sealed partial class ImageStorageService : IImageStorageService
 {
     private const int ThumbnailMaxSide = 256;
 
@@ -36,7 +37,7 @@ public sealed class ImageStorageService : IImageStorageService
         }
 
         var id = Guid.NewGuid().ToString("N");
-        var subDirectory = DateTime.Now.ToString("yyyyMM");
+        var subDirectory = DateTime.Now.ToString("yyyyMM", CultureInfo.InvariantCulture);
 
         var imagesDir = Path.Combine(_imagesRoot, subDirectory);
         var thumbsDir = Path.Combine(_thumbnailsRoot, subDirectory);
@@ -49,7 +50,7 @@ public sealed class ImageStorageService : IImageStorageService
         var thumbnailPath = Path.Combine(thumbsDir, $"{id}.png");
         await Task.Run(() => GenerateThumbnail(imagePath, thumbnailPath), ct);
 
-        _logger.LogDebug("Image saved: {Path} (thumbnail {Thumb})", imagePath, thumbnailPath);
+        Log.ImageSaved(_logger, imagePath, thumbnailPath);
         return new ImageSaveResult(imagePath, thumbnailPath);
     }
 
@@ -72,7 +73,7 @@ public sealed class ImageStorageService : IImageStorageService
                 catch (Exception ex)
                 {
                     // 单张图片损坏/无法解码时跳过，不影响引擎（规范 §45）。
-                    _logger.LogWarning(ex, "Failed to generate thumbnail for {Path}", originalImagePath);
+                    Log.ThumbnailFailed(_logger, ex, originalImagePath);
                     return null;
                 }
             },
@@ -82,7 +83,7 @@ public sealed class ImageStorageService : IImageStorageService
     private string BuildThumbnailPath(string originalImagePath)
     {
         var fileName = Path.GetFileNameWithoutExtension(originalImagePath) + ".png";
-        var subDirectory = Path.GetFileName(Path.GetDirectoryName(originalImagePath)) ?? DateTime.Now.ToString("yyyyMM");
+        var subDirectory = Path.GetFileName(Path.GetDirectoryName(originalImagePath)) ?? DateTime.Now.ToString("yyyyMM", CultureInfo.InvariantCulture);
         var dir = Path.Combine(_thumbnailsRoot, subDirectory);
         Directory.CreateDirectory(dir);
         return Path.Combine(dir, fileName);
@@ -111,4 +112,16 @@ public sealed class ImageStorageService : IImageStorageService
 
     private static string NormalizeExtension(string? extension)
         => string.IsNullOrWhiteSpace(extension) ? "png" : extension.Trim().TrimStart('.').ToLowerInvariant();
+
+    /// <summary>
+    /// 源生成日志方法，避免 CA1848/CA1873。
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Debug, Message = "Image saved: {Path} (thumbnail {Thumb})")]
+        public static partial void ImageSaved(ILogger logger, string path, string thumb);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "Failed to generate thumbnail for {Path}")]
+        public static partial void ThumbnailFailed(ILogger logger, Exception exception, string path);
+    }
 }

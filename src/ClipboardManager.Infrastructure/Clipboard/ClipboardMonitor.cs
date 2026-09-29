@@ -9,7 +9,7 @@ namespace ClipboardManager.Infrastructure;
 /// 剪贴板监听器：基于 Windows 原生事件（WM_CLIPBOARDUPDATE），事件驱动、零轮询（规范 §12）。
 /// 自身写入剪贴板产生的事件会被过滤，防止死循环（规范 §13）。
 /// </summary>
-public sealed class ClipboardMonitor : IClipboardMonitor, IDisposable
+public sealed partial class ClipboardMonitor : IClipboardMonitor, IDisposable
 {
     private readonly CoreHostWindow _hostWindow;
     private readonly IInternalClipboardGuard _guard;
@@ -43,12 +43,12 @@ public sealed class ClipboardMonitor : IClipboardMonitor, IDisposable
 
         if (!NativeMethods.AddClipboardFormatListener(_hostWindow.Handle))
         {
-            _logger.LogError("AddClipboardFormatListener failed: {Code}", Marshal.GetLastPInvokeError());
+            Log.AddListenerFailed(_logger, Marshal.GetLastPInvokeError());
             throw new InvalidOperationException("Failed to register clipboard format listener.");
         }
 
         _started = true;
-        _logger.LogDebug("Clipboard monitor started");
+        Log.MonitorStarted(_logger);
     }
 
     public void Stop()
@@ -65,7 +65,7 @@ public sealed class ClipboardMonitor : IClipboardMonitor, IDisposable
         }
 
         _started = false;
-        _logger.LogDebug("Clipboard monitor stopped");
+        Log.MonitorStopped(_logger);
     }
 
     private void OnHostClipboardChanged(object? sender, ClipboardChangedEventArgs e)
@@ -73,7 +73,7 @@ public sealed class ClipboardMonitor : IClipboardMonitor, IDisposable
         // 自身写入期间产生的事件直接丢弃（规范 §13）。
         if (_guard.IsOwnWrite)
         {
-            _logger.LogTrace("Clipboard change from own write ignored");
+            Log.OwnWriteIgnored(_logger);
             return;
         }
 
@@ -87,5 +87,23 @@ public sealed class ClipboardMonitor : IClipboardMonitor, IDisposable
     public void Dispose()
     {
         Stop();
+    }
+
+    /// <summary>
+    /// 源生成日志方法，避免 CA1848/CA1873。
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 0, Level = LogLevel.Error, Message = "AddClipboardFormatListener failed: {Code}")]
+        public static partial void AddListenerFailed(ILogger logger, int code);
+
+        [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Clipboard monitor started")]
+        public static partial void MonitorStarted(ILogger logger);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Clipboard monitor stopped")]
+        public static partial void MonitorStopped(ILogger logger);
+
+        [LoggerMessage(EventId = 3, Level = LogLevel.Trace, Message = "Clipboard change from own write ignored")]
+        public static partial void OwnWriteIgnored(ILogger logger);
     }
 }
