@@ -1,376 +1,128 @@
-<Window
-    x:Class="ClipboardManager.App.MainWindow"
+<Window x:Class="ClipboardManager.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="using:ClipboardManager.App.ViewModels"
-    mc:Ignorable="d"
-    Title="剪贴板管理器">
+    xmlns:controls="using:ClipboardManager.App.Controls" Title="剪贴板管理器">
+    <Grid x:Name="RootGrid" Background="{ThemeResource BackgroundBrush}">
+        <Border CornerRadius="{StaticResource CornerRadiusWindow}" Background="Transparent"
+            BorderBrush="{ThemeResource GlassRimBrush}" BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="52"/>
+                    <RowDefinition Height="222"/>
+                    <RowDefinition Height="18"/>
+                </Grid.RowDefinitions>
 
-    <!-- Paste 风格：Acrylic 毛玻璃背景（代码中启用，不支持时回退实色），顶部搜索 + 分类标签，下方横向卡片栏 -->
-    <Grid x:Name="RootGrid" Background="{StaticResource BackgroundBrush}">
+                <!-- One quiet navigation row. The search field expands only on demand. -->
+                <Grid Padding="16,6">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid x:Name="NavigationCluster" Grid.Column="1" MaxWidth="900" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid x:Name="SearchHost" Width="32" VerticalAlignment="Center">
+                        <Button x:Name="SearchToggle" Click="SearchToggle_Click" Style="{StaticResource DockIconButtonStyle}" ToolTipService.ToolTip="搜索 (Ctrl+F)">
+                            <FontIcon Glyph="&#xE721;" FontSize="15"/>
+                        </Button>
+                        <TextBox x:Name="SearchBox" Visibility="Collapsed" MinWidth="0" Height="32" Padding="10,5" CornerRadius="8"
+                            PlaceholderText="搜索剪贴板…" AutomationProperties.Name="搜索剪贴板"
+                            Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            KeyDown="SearchBox_KeyDown" Foreground="{ThemeResource TextPrimaryBrush}" Background="{ThemeResource SearchBrush}" FontSize="12"/>
+                    </Grid>
 
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+                    <ScrollViewer x:Name="CategoryScroll" Grid.Column="1" HorizontalContentAlignment="Center"
+                        HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled"
+                        PointerWheelChanged="CategoryScroll_PointerWheelChanged">
+                        <StackPanel x:Name="CategoryPanel" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Button x:Name="TabClipboard" Click="Tab_Click" Style="{StaticResource PinboardTabStyle}" AutomationProperties.Name="剪贴板历史">
+                                <StackPanel Orientation="Horizontal" Spacing="5"><FontIcon Glyph="&#xE81C;" FontSize="12"/><TextBlock Text="剪贴板" FontSize="12"/></StackPanel>
+                            </Button>
+                            <Button x:Name="TabFavorites" Click="Tab_Click" Style="{StaticResource PinboardTabStyle}" AutomationProperties.Name="收藏">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" Fill="{StaticResource PinboardFavoriteBrush}"/>
+                                    <TextBlock Text="收藏" FontSize="12"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="TabAddGroup" Click="AddGroupButton_Click" Style="{StaticResource DockIconButtonStyle}" ToolTipService.ToolTip="新建收藏板">
+                                <FontIcon Glyph="&#xE710;" FontSize="14"/>
+                            </Button>
+                        </StackPanel>
+                    </ScrollViewer>
+                    </Grid>
 
-        <!-- ========== 顶部：搜索 + 分类标签栏（规范 §23、§24），半透明玻璃条，毛玻璃透出 ========== -->
-        <Grid Grid.Row="0" Padding="12,12,12,8" ColumnSpacing="12" Background="{StaticResource BackgroundGlassBrush}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <!-- 搜索框：圆角胶囊，Paste 风格克制 -->
-            <Border
-                Grid.Column="0"
-                Width="200"
-                Height="32"
-                CornerRadius="{StaticResource CornerRadiusPill}"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="1"
-                VerticalAlignment="Center">
-                <Grid ColumnSpacing="6">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <FontIcon
-                        Grid.Column="0"
-                        Margin="12,0,0,0"
-                        VerticalAlignment="Center"
-                        Glyph="&#xE721;"
-                        FontSize="13"
-                        Foreground="{StaticResource TextTertiaryBrush}" />
-                    <!-- 高度收缩到内容行高并垂直居中，与放大镜图标同一水平线 -->
-                    <TextBox
-                        x:Name="SearchBox"
-                        Grid.Column="1"
-                        MinHeight="0"
-                        Margin="0,0,10,0"
-                        VerticalAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        Padding="0"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        FontFamily="{StaticResource FontFamilyUi}"
-                        FontSize="{StaticResource FontSizeBody}"
-                        PlaceholderText="搜索剪贴板"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        PlaceholderForeground="{StaticResource TextTertiaryBrush}"
-                        Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        KeyDown="SearchBox_KeyDown" />
+                    <Button x:Name="OverflowButton" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Style="{StaticResource DockIconButtonStyle}" ToolTipService.ToolTip="更多操作">
+                        <FontIcon Glyph="&#xE712;" FontSize="17"/>
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuFlyoutItem x:Name="FilterButton" Text="筛选当前列表…" Click="Filter_Click"/>
+                                <MenuFlyoutSubItem Text="内容类型">
+                                    <MenuFlyoutItem Text="全部内容" Tag="All" Click="TypeMenu_Click"/>
+                                    <MenuFlyoutItem Text="文本" Tag="Text" Click="TypeMenu_Click"/>
+                                    <MenuFlyoutItem Text="链接" Tag="Url" Click="TypeMenu_Click"/>
+                                    <MenuFlyoutItem Text="图片" Tag="Image" Click="TypeMenu_Click"/>
+                                    <MenuFlyoutItem Text="代码" Tag="Code" Click="TypeMenu_Click"/>
+                                    <MenuFlyoutItem Text="文件" Tag="File" Click="TypeMenu_Click"/>
+                                </MenuFlyoutSubItem>
+                                <MenuFlyoutItem Text="新建常用文本…" Click="NewItem_Click"/>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutSubItem Text="{x:Bind ViewModel.QueueLabel, Mode=OneWay}">
+                                    <MenuFlyoutItem Text="打开队列" Click="QueueOpen_Click"/>
+                                    <MenuFlyoutItem Text="将所选内容加入队列" Click="QueueAdd_Click"/>
+                                    <MenuFlyoutItem Text="反转顺序" Click="QueueReverse_Click"/>
+                                    <MenuFlyoutItem Text="清空队列" Click="QueueClear_Click"/>
+                                </MenuFlyoutSubItem>
+                                <MenuFlyoutSubItem Text="批量操作">
+                                    <MenuFlyoutItem Text="选择已加载的全部内容" Click="SelectAll_Click"/>
+                                    <MenuFlyoutItem Text="收藏所选" Click="BatchFavorite_Click"/>
+                                    <MenuFlyoutItem Text="移入收藏板…" Click="BatchGroup_Click"/>
+                                    <MenuFlyoutItem Text="删除所选…" Click="BatchDelete_Click"/>
+                                </MenuFlyoutSubItem>
+                                <MenuFlyoutSubItem Text="暂停记录">
+                                    <MenuFlyoutItem Text="暂停 5 分钟" Tag="5" Click="Pause_Click"/>
+                                    <MenuFlyoutItem Text="暂停 30 分钟" Tag="30" Click="Pause_Click"/>
+                                    <MenuFlyoutItem Text="恢复记录" Tag="0" Click="Pause_Click"/>
+                                </MenuFlyoutSubItem>
+                                <MenuFlyoutSeparator/>
+                                <MenuFlyoutItem Text="快捷键" Click="ShortcutHelp_Click"/>
+                                <MenuFlyoutItem Text="偏好设置…" Click="SettingsButton_Click"/>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
                 </Grid>
-            </Border>
 
-            <!-- 分类标签栏（规范 §21、§22） -->
-            <ScrollViewer
-                Grid.Column="1"
-                VerticalScrollMode="Disabled"
-                HorizontalScrollMode="Auto"
-                HorizontalScrollBarVisibility="Hidden">
-                <StackPanel x:Name="CategoryPanel" Orientation="Horizontal" Spacing="8">
-                    <Button
-                        x:Name="TabClipboard"
-                        Content="全部"
-                        Padding="14,6"
-                        CornerRadius="{StaticResource CornerRadiusPill}"
-                        Background="{StaticResource AccentBrush}"
-                        Foreground="White"
-                        BorderThickness="0"
-                        FontFamily="{StaticResource FontFamilyUi}"
-                        FontSize="{StaticResource FontSizeSecondary}"
-                        FontWeight="SemiBold"
-                        Click="Tab_Click" />
-                    <Button
-                        x:Name="TabFavorites"
-                        Content="收藏"
-                        Padding="14,6"
-                        CornerRadius="{StaticResource CornerRadiusPill}"
-                        Background="{StaticResource SurfaceBrush}"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        BorderThickness="0"
-                        FontFamily="{StaticResource FontFamilyUi}"
-                        FontSize="{StaticResource FontSizeSecondary}"
-                        Click="Tab_Click" />
-                    <Button
-                        x:Name="TabLinks"
-                        Content="链接"
-                        Padding="14,6"
-                        CornerRadius="{StaticResource CornerRadiusPill}"
-                        Background="{StaticResource SurfaceBrush}"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        BorderThickness="0"
-                        FontFamily="{StaticResource FontFamilyUi}"
-                        FontSize="{StaticResource FontSizeSecondary}"
-                        Click="Tab_Click" />
-                    <Button
-                        x:Name="TabCode"
-                        Content="代码"
-                        Padding="14,6"
-                        CornerRadius="{StaticResource CornerRadiusPill}"
-                        Background="{StaticResource SurfaceBrush}"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        BorderThickness="0"
-                        FontFamily="{StaticResource FontFamilyUi}"
-                        FontSize="{StaticResource FontSizeSecondary}"
-                        Click="Tab_Click" />
-                    <Button
-                        x:Name="TabAssets"
-                        Content="图片"
-                        Padding="14,6"
-                        CornerRadius="{StaticResource CornerRadiusPill}"
-                        Background="{StaticResource SurfaceBrush}"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        BorderThickness="0"
-                        FontFamily="{StaticResource FontFamilyUi}"
-                        FontSize="{StaticResource FontSizeSecondary}"
-                        Click="Tab_Click" />
-                    <!-- 自定义分组标签在此之后动态插入 -->
-                    <Button
-                        x:Name="TabAddGroup"
-                        Content="+"
-                        Padding="10,6"
-                        MinWidth="34"
-                        CornerRadius="{StaticResource CornerRadiusPill}"
-                        Background="{StaticResource SurfaceBrush}"
-                        Foreground="{StaticResource TextTertiaryBrush}"
-                        BorderThickness="0"
-                        FontFamily="{StaticResource FontFamilyUi}"
-                        FontSize="{StaticResource FontSizeSecondary}"
-                        ToolTipService.ToolTip="新建分组标签"
-                        Click="AddGroupButton_Click" />
-                </StackPanel>
-            </ScrollViewer>
+                <Grid Grid.Row="1">
+                    <ListView x:Name="HistoryList" Padding="20,0,0,8"
+                        ItemsSource="{x:Bind ViewModel.Items}" SelectedItem="{x:Bind ViewModel.SelectedItem, Mode=TwoWay}"
+                        SelectionMode="Extended" IsItemClickEnabled="False" DoubleTapped="HistoryList_DoubleTapped"
+                        KeyDown="HistoryList_KeyDown" SelectionChanged="HistoryList_SelectionChanged"
+                        CanDragItems="True" DragItemsStarting="HistoryList_DragItemsStarting"
+                        ScrollViewer.HorizontalScrollMode="Enabled" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                        ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        PointerWheelChanged="HistoryList_PointerWheelChanged"
+                        ItemContainerStyle="{StaticResource DockCardItemStyle}" Loaded="HistoryList_Loaded">
+                        <ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListView.ItemsPanel>
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ClipboardItemViewModel">
+                                <controls:ClipboardCard Item="{x:Bind}" RightTapped="Card_RightTapped"/>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" IsHitTestVisible="False" Visibility="{x:Bind ViewModel.EmptyVisibility, Mode=OneWay}">
+                        <FontIcon Glyph="&#xE8C8;" FontSize="28" Foreground="{ThemeResource TextTertiaryBrush}"/>
+                        <TextBlock Text="{x:Bind ViewModel.ActiveList, Mode=OneWay}" HorizontalAlignment="Center" FontSize="15" FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}"/>
+                        <TextBlock Text="复制一些内容，或换个关键词试试" FontSize="12" Foreground="{ThemeResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </Grid>
 
-            <Button
-                Grid.Column="2"
-                Content="&#xE713;"
-                FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                Padding="8"
-                Background="Transparent"
-                BorderThickness="0"
-                Foreground="{StaticResource TextSecondaryBrush}"
-                Click="SettingsButton_Click"
-                ToolTipService.ToolTip="设置" />
-        </Grid>
-
-        <!-- ========== 横向滚动卡片列表（规范 §6、§49）：ItemsStackPanel 虚拟化，仅实例化可见卡片 ========== -->
-        <ListView
-            x:Name="HistoryList"
-            Grid.Row="1"
-            Padding="12,4,12,12"
-            ItemsSource="{x:Bind ViewModel.Items, Mode=OneWay}"
-            SelectedItem="{x:Bind ViewModel.SelectedItem, Mode=TwoWay}"
-            SelectionMode="Single"
-            IsItemClickEnabled="True"
-            ItemClick="HistoryList_ItemClick"
-            DoubleTapped="HistoryList_DoubleTapped"
-            KeyDown="HistoryList_KeyDown"
-            ScrollViewer.HorizontalScrollMode="Enabled"
-            ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-            ScrollViewer.VerticalScrollMode="Disabled"
-            ItemContainerStyle="{StaticResource DockCardItemStyle}">
-            <ListView.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <ItemsStackPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-            </ListView.ItemsPanel>
-            <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ClipboardItemViewModel">
-                        <!-- 底色与描边由容器模板（DockCardItemStyle）提供，此处保持透明以显示 Hover/Selected 状态 -->
-                        <Border
-                            Width="220"
-                            Height="180"
-                            CornerRadius="{StaticResource CornerRadiusCard}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <!-- 内容区（右上角淡显类型水印，替代彩色条） -->
-                                <Grid Grid.Row="0" Margin="0">
-                                    <TextBlock
-                                        Margin="14,10"
-                                        Text="{x:Bind CardPreviewText}"
-                                        FontFamily="{StaticResource FontFamilyMono}"
-                                        FontSize="{StaticResource FontSizeSecondary}"
-                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                        TextWrapping="Wrap"
-                                        TextTrimming="CharacterEllipsis"
-                                        MaxLines="6"
-                                        LineHeight="18"
-                                        Visibility="{x:Bind CardPreviewVisibility}" />
-                                    <FontIcon
-                                        Glyph="&#xEB9F;"
-                                        FontSize="36"
-                                        Foreground="{StaticResource TextTertiaryBrush}"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Visibility="{x:Bind ThumbnailPlaceholderVisibility, Mode=OneWay}" />
-                                    <Image
-                                        Source="{x:Bind ThumbnailSource, Mode=OneWay}"
-                                        Stretch="Uniform"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Margin="8"
-                                        Visibility="{x:Bind ThumbnailVisibility}"
-                                        Loaded="Thumbnail_Loaded" />
-                                    <!-- 右上角类型徽章：浅色底座 + 彩色类型图标 -->
-                                    <Border
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Top"
-                                        Margin="10,10,10,0"
-                                        Padding="5"
-                                        CornerRadius="6"
-                                        Background="{StaticResource SurfaceHoverBrush}"
-                                        Visibility="{x:Bind TypeIconVisibility}">
-                                        <FontIcon
-                                            Glyph="{x:Bind TypeGlyph}"
-                                            FontSize="12"
-                                            Foreground="{x:Bind HeaderBrush}" />
-                                    </Border>
-                                </Grid>
-
-                                <!-- 底部信息条（Paste 风格：分组 · 来源 · 时间 + 操作） -->
-                                <Grid
-                                    Grid.Row="1"
-                                    Padding="12,8"
-                                    ColumnSpacing="6"
-                                    BorderThickness="0,1,0,0"
-                                    BorderBrush="{StaticResource BorderBrush}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel
-                                        Grid.Column="0"
-                                        Orientation="Horizontal"
-                                        Spacing="6"
-                                        Loaded="SourceIcon_Loaded">
-                                        <!-- 分组徽章（点击可编辑） -->
-                                        <Button
-                                            Padding="8,2"
-                                            CornerRadius="8"
-                                            Background="{StaticResource SurfaceHoverBrush}"
-                                            BorderThickness="0"
-                                            Visibility="{x:Bind GroupBadgeVisibility, Mode=OneWay}"
-                                            Click="GroupButton_Click"
-                                            ToolTipService.ToolTip="点击编辑分组">
-                                            <TextBlock
-                                                Text="{x:Bind GroupBadgeText, Mode=OneWay}"
-                                                FontFamily="{StaticResource FontFamilyUi}"
-                                                FontSize="10"
-                                                Foreground="{StaticResource AccentBrush}" />
-                                        </Button>
-                                        <Border
-                                            Width="14"
-                                            Height="14"
-                                            CornerRadius="3"
-                                            Visibility="{x:Bind SourceIconVisibility, Mode=OneWay}">
-                                            <Image
-                                                Source="{x:Bind SourceAppIconSource, Mode=OneWay}" />
-                                        </Border>
-                                        <TextBlock
-                                            Text="{x:Bind CardFooterText}"
-                                            FontFamily="{StaticResource FontFamilyUi}"
-                                            FontSize="{StaticResource FontSizeCaption}"
-                                            Foreground="{StaticResource TextTertiaryBrush}"
-                                            VerticalAlignment="Center"
-                                            TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-
-                                    <Button
-                                        Grid.Column="1"
-                                        Padding="4"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        ToolTipService.ToolTip="分组 (G)"
-                                        Click="GroupButton_Click">
-                                        <FontIcon
-                                            Glyph="&#xE8EC;"
-                                            FontSize="12"
-                                            Foreground="{StaticResource TextSecondaryBrush}" />
-                                    </Button>
-                                    <Button
-                                        Grid.Column="2"
-                                        Padding="4"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        ToolTipService.ToolTip="收藏"
-                                        Click="FavoriteButton_Click">
-                                        <FontIcon
-                                            Glyph="{x:Bind FavoriteGlyph, Mode=OneWay}"
-                                            FontSize="12"
-                                            Foreground="{StaticResource TextSecondaryBrush}" />
-                                    </Button>
-                                    <Button
-                                        Grid.Column="3"
-                                        Padding="4"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        ToolTipService.ToolTip="删除"
-                                        Click="DeleteButton_Click">
-                                        <FontIcon
-                                            Glyph="&#xE74D;"
-                                            FontSize="12"
-                                            Foreground="{StaticResource TextSecondaryBrush}" />
-                                    </Button>
-                                </Grid>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-
-        <!-- ========== 底部命令提示条（规范 §19），半透明玻璃条，毛玻璃透出 ========== -->
-        <Grid
-            Grid.Row="2"
-            Padding="12,6,12,10"
-            Background="{StaticResource SurfaceGlassBrush}"
-            BorderThickness="0,1,0,0"
-            BorderBrush="{StaticResource BorderBrush}">
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <TextBlock
-                    Text="Enter 粘贴"
-                    FontFamily="{StaticResource FontFamilyUi}"
-                    FontSize="{StaticResource FontSizeCaption}"
-                    Foreground="{StaticResource TextTertiaryBrush}" />
-                <TextBlock
-                    Text="Ctrl+C 复制"
-                    FontFamily="{StaticResource FontFamilyUi}"
-                    FontSize="{StaticResource FontSizeCaption}"
-                    Foreground="{StaticResource TextTertiaryBrush}" />
-                <TextBlock
-                    Text="G 分组"
-                    FontFamily="{StaticResource FontFamilyUi}"
-                    FontSize="{StaticResource FontSizeCaption}"
-                    Foreground="{StaticResource TextTertiaryBrush}" />
-                <TextBlock
-                    Text="F 收藏"
-                    FontFamily="{StaticResource FontFamilyUi}"
-                    FontSize="{StaticResource FontSizeCaption}"
-                    Foreground="{StaticResource TextTertiaryBrush}" />
-                <TextBlock
-                    Text="Del 删除"
-                    FontFamily="{StaticResource FontFamilyUi}"
-                    FontSize="{StaticResource FontSizeCaption}"
-                    Foreground="{StaticResource TextTertiaryBrush}" />
-                <TextBlock
-                    Text="Esc 关闭"
-                    FontFamily="{StaticResource FontFamilyUi}"
-                    FontSize="{StaticResource FontSizeCaption}"
-                    Foreground="{StaticResource TextTertiaryBrush}" />
-            </StackPanel>
-        </Grid>
+                <!-- No persistent toolbar: only a quiet state line and a pagination fallback. -->
+                <Grid Grid.Row="2" Margin="20,0,20,3" ColumnSpacing="10">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" FontSize="9" Foreground="{ThemeResource TextTertiaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <ProgressRing Grid.Column="1" Width="12" Height="12" IsActive="{x:Bind ViewModel.IsSearching, Mode=OneWay}"/>
+                    <HyperlinkButton Grid.Column="2" Content="更多历史 →" FontSize="9" Padding="0" MinHeight="0" VerticalAlignment="Center"
+                        Foreground="{ThemeResource TextSecondaryBrush}" Visibility="{x:Bind ViewModel.MoreVisibility, Mode=OneWay}" Click="LoadMore_Click"/>
+                </Grid>
+            </Grid>
+        </Border>
+        <InfoBar x:Name="CopyNotice" IsOpen="False" IsClosable="True" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="16,0,16,26" MaxWidth="520"/>
+        <Border x:Name="ModalShade" Background="{ThemeResource GlassDimBrush}" CornerRadius="20" Visibility="Collapsed" IsHitTestVisible="False"/>
     </Grid>
 </Window>

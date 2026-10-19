@@ -60,12 +60,12 @@ public class ChineseTokenizerTests
     }
 
     [Fact]
-    public void BuildMatchQuery_Cjk_OrCombined()
+    public void BuildMatchQuery_Cjk_AndCombined()
     {
         var query = ChineseTokenizer.BuildMatchQuery("哈希");
 
         Assert.Contains("\"哈希\"*", query);
-        Assert.Contains(" OR ", query);
+        Assert.Contains(" AND ", query);
     }
 
     [Fact]

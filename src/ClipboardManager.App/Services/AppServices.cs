@@ -20,7 +20,11 @@ public static class AppServices
         // ---- Data（SQLite + Dapper + FTS5）----
         services.AddSingleton(new SqliteConnectionFactory(paths.Database));
         services.AddSingleton<DatabaseInitializer>();
-        services.AddSingleton<IClipboardItemRepository, ClipboardItemRepository>();
+        services.AddSingleton<ClipboardItemRepository>();
+        services.AddSingleton<IClipboardItemRepository>(sp => sp.GetRequiredService<ClipboardItemRepository>());
+        services.AddSingleton<IWorkspaceRepository>(sp => sp.GetRequiredService<ClipboardItemRepository>());
+        services.AddSingleton<IWorkspaceService, WorkspaceService>();
+        services.AddSingleton<IImageTextService, ImageTextService>();
         services.AddSingleton<ISettingsRepository, SettingsRepository>();
         services.AddSingleton<IBackupService, DatabaseBackupService>();
 
@@ -55,6 +59,7 @@ public static class AppServices
         // ---- App（UI 层）----
         services.AddSingleton<IDebouncer, TimerDebouncer>();
         services.AddSingleton<LruImageCache>();
+        services.AddSingleton<CardAssetLoader>();
         services.AddSingleton<ThemeService>();
         services.AddSingleton<LauncherViewModel>();
         services.AddSingleton<SettingsViewModel>();

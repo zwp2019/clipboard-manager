@@ -5,13 +5,29 @@ namespace ClipboardManager.Data;
 /// </summary>
 public static class SqliteSchema
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public static readonly IReadOnlyList<Migration> Migrations = new List<Migration>
     {
         new(1, V1),
         new(2, V2),
+        new(3, V3),
     };
+
+    private const string V3 =
+        """
+        ALTER TABLE clipboard_items ADD COLUMN title TEXT;
+        ALTER TABLE clipboard_items ADD COLUMN ocr_text TEXT;
+        CREATE TABLE pinboards (
+            name TEXT PRIMARY KEY COLLATE NOCASE,
+            color TEXT NOT NULL DEFAULT '#7C6AF2',
+            position INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO pinboards (name, position)
+        SELECT group_name, ROW_NUMBER() OVER (ORDER BY group_name) FROM clipboard_items
+        WHERE group_name IS NOT NULL AND TRIM(group_name) <> '' GROUP BY group_name;
+        CREATE INDEX idx_items_source_date ON clipboard_items(source_application, created_at DESC);
+        """;
 
     /// <summary>V2：自定义分组（轻量：条目直接存组名，分组列表按 DISTINCT 查询）。</summary>
     private const string V2 =

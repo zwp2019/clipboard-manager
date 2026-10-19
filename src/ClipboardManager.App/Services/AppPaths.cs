@@ -24,7 +24,8 @@ public sealed class AppPaths
 
     public AppPaths()
     {
-        Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClipboardManager");
+        Root = App.IsPreview ? Path.Combine(AppContext.BaseDirectory, "PreviewData") :
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClipboardManager");
         Database = Path.Combine(Root, "Database", "clipboard.db");
         Data = Path.Combine(Root, "Data");
         Images = Path.Combine(Root, "Images");

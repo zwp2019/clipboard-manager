@@ -53,6 +53,7 @@ public sealed partial class ClipboardWriter : IClipboardWriter
                     try
                     {
                         NativeMethods.EmptyClipboard();
+                        SetFormat(InternalClipboardFormat.Id, Encoding.Unicode.GetBytes(_guard.CreateClipboardMarker(operationId) + "\0"), hGlobalCopies);
                         WriteFormats(item, hGlobalCopies);
                         Log.ClipboardWritten(_logger, item.Type, operationId);
                         return;
@@ -74,6 +75,7 @@ public sealed partial class ClipboardWriter : IClipboardWriter
                         NativeMethods.CloseClipboard();
                     }
                 }
+                throw new InvalidOperationException("无法打开剪贴板，请稍后重试。");
             },
             cancellationToken);
     }
@@ -90,12 +92,12 @@ public sealed partial class ClipboardWriter : IClipboardWriter
 
             case ClipboardType.Html:
                 SetUnicodeText(item.Text, handles);
-                SetHtml(item.Html ?? item.Text ?? string.Empty, handles);
+                SetFormat((uint)HtmlFormat, ClipboardTextCodec.EncodeHtml(item.Html ?? string.Empty, item.Text), handles);
                 break;
 
             case ClipboardType.Rtf:
                 SetUnicodeText(item.Text, handles);
-                SetFormat(RtfFormat, Encoding.UTF8.GetBytes(item.Rtf ?? string.Empty), handles);
+                if (ClipboardTextCodec.EncodeRtf(item.Rtf) is { } rtfBytes) SetFormat(RtfFormat, rtfBytes, handles);
                 break;
 
             case ClipboardType.Image:
@@ -120,13 +122,6 @@ public sealed partial class ClipboardWriter : IClipboardWriter
         }
 
         SetFormat(NativeMethods.CF_UNICODETEXT, Encoding.Unicode.GetBytes(text + "\0"), handles);
-    }
-
-    private void SetHtml(string html, List<nint> handles)
-    {
-        var header = "Version:0.9\r\nStartHTML:0000000000\r\nEndHTML:0000000000\r\n";
-        var bytes = Encoding.UTF8.GetBytes(header + html);
-        SetFormat((uint)HtmlFormat, bytes, handles);
     }
 
     private void SetImage(string? imagePath, List<nint> handles)
@@ -198,7 +193,9 @@ public sealed partial class ClipboardWriter : IClipboardWriter
         var bytes = stream.ToArray();
         var hDrop = CopyToGlobal(bytes);
         handles.Add(hDrop);
-        NativeMethods.SetClipboardData(NativeMethods.CF_HDROP, hDrop);
+        if (NativeMethods.SetClipboardData(NativeMethods.CF_HDROP, hDrop) == nint.Zero)
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError(), "Failed to write clipboard file list.");
+        handles.Remove(hDrop); // The system now owns this handle.
     }
 
     private void SetFormat(uint format, byte[] data, List<nint> handles)
@@ -212,8 +209,11 @@ public sealed partial class ClipboardWriter : IClipboardWriter
         handles.Add(hMem);
         if (NativeMethods.SetClipboardData(format, hMem) == nint.Zero)
         {
-            Log.SetFormatFailed(_logger, format, Marshal.GetLastPInvokeError());
+            var error = Marshal.GetLastPInvokeError();
+            Log.SetFormatFailed(_logger, format, error);
+            throw new System.ComponentModel.Win32Exception(error, "Failed to write clipboard format.");
         }
+        handles.Remove(hMem); // Only untransferred handles may be freed on failure.
     }
 
     private static nint CopyToGlobal(byte[] bytes)

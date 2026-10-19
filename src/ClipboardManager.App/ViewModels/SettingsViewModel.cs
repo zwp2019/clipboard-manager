@@ -43,6 +43,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool pauseMonitoring;
 
     [ObservableProperty]
+    private bool alwaysPastePlainText;
+
+    [ObservableProperty]
     private ObservableCollection<string> excludedApplications = new();
 
     public SettingsViewModel(
@@ -70,6 +73,7 @@ public partial class SettingsViewModel : ObservableObject
         MaxHistoryItems = settings.MaxHistoryItems;
         ImageCompression = settings.ImageCompression;
         PauseMonitoring = settings.PauseMonitoring;
+        AlwaysPastePlainText = settings.AlwaysPastePlainText;
         ExcludedApplications = new ObservableCollection<string>(settings.ExcludedApplications);
         HotkeyStatus = _hotkeyService.IsRegistered ? "热键已注册" : "热键未注册（点击保存后重试）";
     }
@@ -85,6 +89,8 @@ public partial class SettingsViewModel : ObservableObject
         settings.MaxHistoryItems = MaxHistoryItems;
         settings.ImageCompression = ImageCompression;
         settings.PauseMonitoring = PauseMonitoring;
+        settings.PauseUntil = null;
+        settings.AlwaysPastePlainText = AlwaysPastePlainText;
         settings.ExcludedApplications = ExcludedApplications.ToList();
         _settingsService.Save(settings);
 
@@ -127,6 +133,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         // 主题立即生效（规范 §47）
         _themeService.Apply(settings.Theme);
+        if (App.IsPreview) return;
 
         // 开机自启：仅在用户显式修改时写入注册表（规范 §32）
         if (AutoStart != _autoStartService.IsEnabled())

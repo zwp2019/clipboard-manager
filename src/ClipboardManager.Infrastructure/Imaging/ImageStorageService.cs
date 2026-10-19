@@ -16,7 +16,7 @@ namespace ClipboardManager.Infrastructure;
 /// </summary>
 public sealed partial class ImageStorageService : IImageStorageService
 {
-    private const int ThumbnailMaxSide = 256;
+    private const int ThumbnailMaxSide = 640;
 
     private readonly string _imagesRoot;
     private readonly string _thumbnailsRoot;

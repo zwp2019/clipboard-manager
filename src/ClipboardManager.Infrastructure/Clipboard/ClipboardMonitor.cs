@@ -12,7 +12,6 @@ namespace ClipboardManager.Infrastructure;
 public sealed partial class ClipboardMonitor : IClipboardMonitor, IDisposable
 {
     private readonly CoreHostWindow _hostWindow;
-    private readonly IInternalClipboardGuard _guard;
     private readonly ILogger<ClipboardMonitor> _logger;
 
     private bool _started;
@@ -23,11 +22,9 @@ public sealed partial class ClipboardMonitor : IClipboardMonitor, IDisposable
 
     public ClipboardMonitor(
         CoreHostWindow hostWindow,
-        IInternalClipboardGuard guard,
         ILogger<ClipboardMonitor> logger)
     {
         _hostWindow = hostWindow;
-        _guard = guard;
         _logger = logger;
     }
 
@@ -70,12 +67,8 @@ public sealed partial class ClipboardMonitor : IClipboardMonitor, IDisposable
 
     private void OnHostClipboardChanged(object? sender, ClipboardChangedEventArgs e)
     {
-        // 自身写入期间产生的事件直接丢弃（规范 §13）。
-        if (_guard.IsOwnWrite)
-        {
-            Log.OwnWriteIgnored(_logger);
-            return;
-        }
+        // The reader inspects the persistent payload marker. Timing-based filtering
+        // here loses late own-write notifications and can drop unrelated copies.
 
         // 在事件触发的瞬间捕获前台窗口进程（复制来源），
         // 延迟到读取线程时前台窗口可能已被用户切换。

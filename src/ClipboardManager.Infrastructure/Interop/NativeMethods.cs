@@ -85,6 +85,9 @@ internal static partial class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     public static extern nint GetClipboardData(uint uFormat);
 
+    [DllImport("user32.dll")]
+    public static extern nint GetClipboardOwner();
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern nint SetClipboardData(uint uFormat, nint hMem);
 
@@ -188,6 +191,15 @@ internal static partial class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(nint hWnd);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    public static extern nint SetWindowOwner(nint hWnd, int index, nint owner);
+
+    [DllImport("user32.dll")]
+    public static extern bool EnableWindow(nint hWnd, bool enable);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowEnabled(nint hWnd);
 
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(nint hwnd);

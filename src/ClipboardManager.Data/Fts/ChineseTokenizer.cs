@@ -17,6 +17,9 @@ public static partial class ChineseTokenizer
     [GeneratedRegex(@"[\u2E80-\u9FFF\uF900-\uFAFF]+", RegexOptions.Compiled)]
     private static partial Regex CjkRunRegex();
 
+    [GeneratedRegex(@"[A-Za-z0-9_]+|[\u2E80-\u9FFF\uF900-\uFAFF]+")]
+    private static partial Regex OrderedRunRegex();
+
     /// <summary>
     /// 将文本切分为检索 token（去重保序）。
     /// </summary>
@@ -28,14 +31,10 @@ public static partial class ChineseTokenizer
         }
 
         var tokens = new List<string>();
-        foreach (Match m in AsciiWordRegex().Matches(text))
-        {
-            tokens.Add(m.Value.ToLowerInvariant());
-        }
-
-        foreach (Match m in CjkRunRegex().Matches(text))
+        foreach (Match m in OrderedRunRegex().Matches(text))
         {
             var run = m.Value;
+            if (char.IsAscii(run[0])) { tokens.Add(run.ToLowerInvariant()); continue; }
             if (run.Length == 1)
             {
                 tokens.Add(run);
@@ -73,7 +72,7 @@ public static partial class ChineseTokenizer
             return string.Empty;
         }
 
-        return string.Join(" OR ", tokens.Select(t => $"\"{EscapeFtsToken(t)}\"*"));
+        return string.Join(" AND ", tokens.Select(t => $"\"{EscapeFtsToken(t)}\"*"));
     }
 
     private static string EscapeFtsToken(string token)

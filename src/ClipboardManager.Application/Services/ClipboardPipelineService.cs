@@ -102,13 +102,6 @@ public sealed partial class ClipboardPipelineService : IDisposable
 
     private void OnClipboardChanged(object? sender, ClipboardChangedEventArgs e)
     {
-        // 防死循环：自身写入剪贴板产生的事件直接忽略（规范 §13）。
-        if (_guard.IsOwnWrite)
-        {
-            Log.IgnoringOwnWrite(_logger);
-            return;
-        }
-
         _ = Task.Run(() => ProcessAsync(e, _cts?.Token ?? CancellationToken.None));
     }
 
@@ -121,11 +114,18 @@ public sealed partial class ClipboardPipelineService : IDisposable
             // 暂停监控
             if (_settingsService.Current.PauseMonitoring)
             {
-                return;
+                if (_settingsService.Current.PauseUntil is not { } until || DateTime.Now < until) return;
+                _settingsService.Update(s => { s.PauseMonitoring = false; s.PauseUntil = null; });
             }
 
             var data = await _reader.ReadAsync(ct);
-            if (data is null || data.Size <= 0)
+            if (data is null) return;
+            if (_guard.IsOwnClipboardMarker(data.InternalWriteMarker))
+            {
+                Log.IgnoringOwnWrite(_logger);
+                return;
+            }
+            if (data.Size <= 0)
             {
                 return;
             }
@@ -159,7 +159,7 @@ public sealed partial class ClipboardPipelineService : IDisposable
             var hash = _hashService.ComputeHash(data);
 
             // 高频去重窗口（规范 §15）
-            if (_deduplication.IsDuplicateWithinWindow(hash, DateTime.UtcNow))
+            if (_settingsService.Current.EnableDeduplication && _deduplication.IsDuplicateWithinWindow(hash, DateTime.UtcNow))
             {
                 if (_logger.IsEnabled(LogLevel.Trace))
                 {
@@ -171,10 +171,10 @@ public sealed partial class ClipboardPipelineService : IDisposable
             }
 
             var item = _normalizer.Normalize(data, hash);
-            await _storage.SaveAsync(item, data.ImageBytes, data.ImageExtension, ct);
+            var saved = await _storage.SaveAsync(item, data.ImageBytes, data.ImageExtension, ct);
 
             // 捕获成功的系统 Toast 提示（失败已在服务内部兜底，不影响主流程）。
-            _notification?.ShowItemCaptured(item);
+            _notification?.ShowItemCaptured(saved);
         }
         catch (OperationCanceledException)
         {

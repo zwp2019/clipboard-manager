@@ -20,12 +20,20 @@ public sealed partial class ClipboardReader : IClipboardReader
     private static readonly int PngFormat = (int)NativeMethods.RegisterClipboardFormatW("PNG");
     private static readonly int ImagePngFormat = (int)NativeMethods.RegisterClipboardFormatW("image/png");
     private static readonly int JpegFormat = (int)NativeMethods.RegisterClipboardFormatW("JFIF");
+    private static readonly uint[] ConfidentialFormats =
+    {
+        NativeMethods.RegisterClipboardFormatW("ExcludeClipboardContentFromMonitorProcessing"),
+        NativeMethods.RegisterClipboardFormatW("Clipboard Viewer Ignore"),
+        NativeMethods.RegisterClipboardFormatW("application/x-keepassxc-secret"),
+    };
 
     private readonly ILogger<ClipboardReader> _logger;
+    private readonly IInternalClipboardGuard _guard;
 
-    public ClipboardReader(ILogger<ClipboardReader> logger)
+    public ClipboardReader(ILogger<ClipboardReader> logger, IInternalClipboardGuard guard)
     {
         _logger = logger;
+        _guard = guard;
     }
 
     public Task<ClipboardData?> ReadAsync(CancellationToken cancellationToken)
@@ -72,6 +80,19 @@ public sealed partial class ClipboardReader : IClipboardReader
 
     private ClipboardData? ReadFormats()
     {
+        if (ConfidentialFormats.Any(NativeMethods.IsClipboardFormatAvailable)) return null;
+        var marker = ReadUtf16Text(InternalClipboardFormat.Id);
+        // Read the marker and payload under the same OpenClipboard lock. The writer
+        // may already have returned by the time WM_CLIPBOARDUPDATE is delivered.
+        if (_guard.IsOwnClipboardMarker(marker)) return new ClipboardData { InternalWriteMarker = marker };
+        // TextBox copy/context-menu actions use WinUI's writer rather than ours.
+        // Identify their actual owner instead of guessing from the foreground app.
+        var owner = NativeMethods.GetClipboardOwner();
+        if (owner != nint.Zero)
+        {
+            if (NativeMethods.GetWindowThreadProcessId(owner, out var processId) != 0 && processId == Environment.ProcessId)
+                return new ClipboardData { InternalWriteMarker = _guard.CreateClipboardMarker("native-control-copy") };
+        }
         var text = ReadUtf16Text(NativeMethods.CF_UNICODETEXT);
         var html = ReadFormatText(HtmlFormat);
         var rtf = ReadFormatText(RtfFormat);
@@ -114,6 +135,7 @@ public sealed partial class ClipboardReader : IClipboardReader
 
         return new ClipboardData
         {
+            InternalWriteMarker = marker,
             Type = type,
             Text = string.IsNullOrEmpty(text) ? null : text,
             Html = string.IsNullOrEmpty(html) ? null : html,
@@ -170,33 +192,16 @@ public sealed partial class ClipboardReader : IClipboardReader
                 return null;
             }
 
-            var size = NativeMethods.GlobalSize(hGlobal);
-            var length = (int)size / sizeof(ushort); // 兼容 UTF-16 数据
-            var text = Marshal.PtrToStringUni(ptr, length) ?? string.Empty;
-
-            // HTML Format 通常带 "Version:..." 头部，剥离后保留真正 HTML（规范 §65）。
-            if (format == HtmlFormat)
-            {
-                text = StripHtmlHeader(text);
-            }
-
-            return text;
+            var size = checked((int)NativeMethods.GlobalSize(hGlobal));
+            var bytes = new byte[size];
+            Marshal.Copy(ptr, bytes, 0, size);
+            try { return format == HtmlFormat ? ClipboardTextCodec.DecodeHtml(bytes) : ClipboardTextCodec.DecodeRtf(bytes); }
+            catch (DecoderFallbackException) { return null; }
         }
         finally
         {
             NativeMethods.GlobalUnlock(hGlobal);
         }
-    }
-
-    private static string StripHtmlHeader(string html)
-    {
-        var index = html.IndexOf("<html", StringComparison.OrdinalIgnoreCase);
-        if (index < 0)
-        {
-            index = html.IndexOf("<!doctype", StringComparison.OrdinalIgnoreCase);
-        }
-
-        return index >= 0 ? html[index..] : html;
     }
 
     private static List<string>? ReadFileDrop()

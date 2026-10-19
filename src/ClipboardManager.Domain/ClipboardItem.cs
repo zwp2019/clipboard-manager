@@ -8,6 +8,10 @@ public sealed class ClipboardItem
 {
     public long Id { get; set; }
 
+    public string? Title { get; set; }
+
+    public string? OcrText { get; set; }
+
     public ClipboardType Type { get; set; } = ClipboardType.Text;
 
     /// <summary>纯文本内容（Text / Url / Code 类型）。</summary>

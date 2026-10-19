@@ -1,0 +1,18 @@
+<UserControl x:Class="ClipboardManager.App.Controls.ItemDetails"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        <StackPanel Spacing="12" MaxWidth="640" Padding="0,0,0,12">
+            <TextBox x:Name="TitleBox" Header="名称" PlaceholderText="为这条内容起个名字" MaxLength="120"/>
+            <TextBlock x:Name="Metadata" TextWrapping="Wrap" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <Image x:Name="OriginalImage" Stretch="Uniform" MaxHeight="240" Visibility="Collapsed"/>
+            <Button x:Name="OcrButton" Content="提取图片文字（本地 OCR）" Visibility="Collapsed" Click="Ocr_Click"/>
+            <StackPanel x:Name="OcrOptions" Spacing="8" Visibility="Collapsed">
+                <ComboBox x:Name="OcrLanguageBox" Header="识别语言" HorizontalAlignment="Stretch"/>
+                <TextBlock x:Name="OcrLanguageHint" FontSize="11" TextWrapping="Wrap" Foreground="{ThemeResource TextSecondaryBrush}"/>
+                <CheckBox x:Name="EnhanceSmallText" Content="小字增强（放大 2 倍，识别较慢）"/>
+                <ProgressRing x:Name="OcrProgress" Width="20" Height="20" HorizontalAlignment="Left" Visibility="Collapsed"/>
+            </StackPanel>
+            <TextBox x:Name="ContentBox" Header="内容" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="140" ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollMode="Disabled"/>
+            <TextBlock x:Name="HintText" TextWrapping="Wrap" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+</UserControl>

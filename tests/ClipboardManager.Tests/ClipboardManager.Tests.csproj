@@ -12,6 +12,8 @@
     <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\src\ClipboardManager.Infrastructure\Clipboard\ClipboardTextCodec.cs" Link="ClipboardTextCodec.cs" />
+    <Compile Include="..\..\src\ClipboardManager.Infrastructure\Imaging\OcrImageLayout.cs" Link="OcrImageLayout.cs" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">

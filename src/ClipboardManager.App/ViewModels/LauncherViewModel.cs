@@ -1,339 +1,233 @@
 using System.Collections.ObjectModel;
 using ClipboardManager.Contracts;
 using ClipboardManager.Domain;
-using ClipboardManager.App.ViewModels;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Logging;
+using Microsoft.UI.Xaml;
 
 namespace ClipboardManager.App.ViewModels;
 
-/// <summary>
-/// Launcher 主窗口 ViewModel：搜索（Debounce + 取消旧查询）、历史、收藏、快速粘贴（规范 §27、§29）。
-/// </summary>
 public partial class LauncherViewModel : ObservableObject, IDisposable
 {
     private const int PageSize = 80;
-
+    private readonly IWorkspaceService _workspace;
     private readonly IHistoryService _history;
-    private readonly ISearchService _search;
-    private readonly IQuickPasteService _quickPaste;
+    private readonly IQuickPasteService _paste;
     private readonly IClipboardWriter _writer;
+    private readonly ISettingsService _settings;
+    private readonly IImageTextService _ocr;
     private readonly IDispatcher _dispatcher;
     private readonly IDebouncer _debouncer;
-    private readonly LruImageCache _imageCache;
+    private readonly CardAssetLoader _assets;
+    private readonly ILogger<LauncherViewModel> _logger;
+    private CancellationTokenSource? _queryCts;
+    private ClipboardQuery _scope = new();
+    private nint _target;
+    private readonly List<ClipboardItem> _queue = new();
+    private bool _pasteBusy;
+    private int _searchVersion;
+    private int _nextOffset;
+    public event Action<string, bool>? CopyFeedback;
 
-    private CancellationTokenSource? _searchCts;
-    private string _view = "history";
-    private nint _pasteTargetWindow;
+    [ObservableProperty] private string searchText = string.Empty;
+    [ObservableProperty] private bool isSearching;
+    [ObservableProperty] private string statusText = "你的剪贴板，井然有序";
+    [ObservableProperty] private string activeList = "全部历史";
+    [ObservableProperty] private bool hasMore;
+    [ObservableProperty] private bool isEmpty = true;
+    [ObservableProperty] private string queueLabel = "粘贴队列";
+    [ObservableProperty] private bool isQueueView;
+    [ObservableProperty] private ClipboardItemViewModel? selectedItem;
+    public ObservableCollection<ClipboardItemViewModel> Items { get; } = new();
+    public Visibility EmptyVisibility => IsEmpty ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility MoreVisibility => HasMore ? Visibility.Visible : Visibility.Collapsed;
+    public bool PastePlainTextOnce { get; set; }
+    public string? CurrentGroup => _scope.Group;
 
-    [ObservableProperty]
-    private string searchText = string.Empty;
-
-    [ObservableProperty]
-    private bool isSearching;
-
-    [ObservableProperty]
-    private string statusText = "准备就绪";
-
-    [ObservableProperty]
-    private ObservableCollection<ClipboardItemViewModel> items = new();
-
-    [ObservableProperty]
-    private ClipboardItemViewModel? selectedItem;
-
-    private IReadOnlyList<ClipboardItem> _lastResults = new List<ClipboardItem>();
-
-    public LauncherViewModel(
-        IHistoryService history,
-        ISearchService search,
-        IQuickPasteService quickPaste,
-        IClipboardWriter writer,
-        IDispatcher dispatcher,
-        IDebouncer debouncer,
-        LruImageCache imageCache)
+    public LauncherViewModel(IWorkspaceService workspace, IHistoryService history, IQuickPasteService paste,
+        IClipboardWriter writer, ISettingsService settings, IImageTextService ocr, IDispatcher dispatcher,
+        IDebouncer debouncer, CardAssetLoader assets, ILogger<LauncherViewModel> logger)
     {
-        _history = history;
-        _search = search;
-        _quickPaste = quickPaste;
-        _writer = writer;
-        _dispatcher = dispatcher;
-        _debouncer = debouncer;
-        _imageCache = imageCache;
+        _workspace = workspace; _history = history; _paste = paste; _writer = writer;
+        _settings = settings; _ocr = ocr; _dispatcher = dispatcher; _debouncer = debouncer;
+        _assets = assets; _logger = logger;
     }
 
-    /// <summary>
-    /// 记录打开 Launcher 前的活动窗口，供快速粘贴恢复（规范 §30）。
-    /// </summary>
-    public void SetPasteTarget(nint windowHandle)
-        => _pasteTargetWindow = windowHandle;
-
-    /// <summary>
-    /// 搜索框文本变化：300ms 防抖 + 取消旧查询（规范 §27）。
-    /// </summary>
+    partial void OnIsEmptyChanged(bool value) => OnPropertyChanged(nameof(EmptyVisibility));
+    partial void OnHasMoreChanged(bool value) => OnPropertyChanged(nameof(MoreVisibility));
     partial void OnSearchTextChanged(string value)
     {
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        var ct = _searchCts.Token;
-        _debouncer.Debounce(() => _ = ExecuteSearchAsync(value, ct), 300);
+        _queryCts?.Cancel();
+        HasMore = false;
+        var version = ++_searchVersion;
+        _debouncer.Debounce(() => _dispatcher.Post(() => { if (version == _searchVersion) _ = RefreshAsync(); }), 200);
     }
 
-    public async Task RefreshAsync()
+    public void SetPasteTarget(nint handle) => _target = handle;
+    public Task RefreshAsync() { _searchVersion++; return LoadAsync(false); }
+    public Task LoadMoreAsync() => HasMore && !IsSearching ? LoadAsync(true) : Task.CompletedTask;
+    public Task SearchNowAsync(string? query = null)
     {
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        var ct = _searchCts.Token;
-        await ExecuteSearchAsync(SearchText, ct);
+        if (query is not null && SearchText != query) SearchText = query;
+        return RefreshAsync();
     }
 
-    public async Task ShowFavoritesAsync()
+    private async Task LoadAsync(bool append)
     {
-        _view = "favorites";
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        var ct = _searchCts.Token;
-        await LoadAsync(() => _history.GetFavoritesAsync(0, PageSize, ct), "收藏", ct);
-    }
-
-    public async Task ShowHistoryAsync()
-    {
-        _view = "history";
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        var ct = _searchCts.Token;
-        await ExecuteSearchAsync(string.Empty, ct);
-    }
-
-    /// <summary>
-    /// 立即按指定关键词执行搜索（回车触发，跳过输入防抖）。不传则用当前绑定关键词。
-    /// </summary>
-    public async Task SearchNowAsync(string? query = null)
-    {
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        var ct = _searchCts.Token;
-        await ExecuteSearchAsync(query ?? SearchText?.Trim() ?? string.Empty, ct);
-    }
-
-    private async Task ExecuteSearchAsync(string query, CancellationToken ct)
-    {
+        _queryCts?.Cancel(); _queryCts?.Dispose();
+        _queryCts = new CancellationTokenSource();
+        var ct = _queryCts.Token;
+        IsSearching = true;
+        var query = _scope with { Text = SearchText };
+        var offset = append ? _nextOffset : 0;
         try
         {
-            IReadOnlyList<ClipboardItem> results;
-            string label;
-
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                _view = "history";
-                results = await _history.GetRecentAsync(0, PageSize, ct);
-                label = "最近";
-            }
-            else
-            {
-                _view = "search";
-                results = await _search.SearchAsync(query, 0, PageSize, ct);
-                label = $"搜索 “{query}”";
-            }
-
-            if (ct.IsCancellationRequested)
-            {
-                return;
-            }
-
-            await ApplyResultsAsync(results, label);
+            IReadOnlyList<ClipboardItem> rows = IsQueueView
+                ? _queue.Where(i => string.IsNullOrWhiteSpace(SearchText) || (i.GetPreviewText() ?? "").Contains(SearchText, StringComparison.OrdinalIgnoreCase)).ToList()
+                : await _workspace.QueryAsync(query, offset, PageSize, ct);
+            ct.ThrowIfCancellationRequested();
+            _nextOffset = offset + rows.Count;
+            var previous = SelectedItem?.Item.Id;
+            if (!append) Items.Clear();
+            foreach (var row in rows)
+                if (!Items.Any(i => i.Item.Id == row.Id)) Items.Add(new ClipboardItemViewModel(row, _assets));
+            HasMore = !IsQueueView && rows.Count == PageSize;
+            IsEmpty = Items.Count == 0;
+            SelectedItem = Items.FirstOrDefault(i => i.Item.Id == previous) ?? Items.FirstOrDefault();
+            StatusText = $"{ActiveList} · {Items.Count} 项" + (HasMore ? "+" : "");
         }
-        catch (OperationCanceledException)
-        {
-            // 旧查询被取消，忽略（规范 §27）。
-        }
-        catch (Exception)
-        {
-            await _dispatcher.PostAsync(
-                () =>
-                {
-                    IsSearching = false;
-                    StatusText = "加载失败";
-                });
-        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { ReportError(ex); }
+        finally { if (!ct.IsCancellationRequested) IsSearching = false; }
     }
 
-    private async Task LoadAsync(
-        Func<Task<IReadOnlyList<ClipboardItem>>> loader,
-        string label,
-        CancellationToken ct)
+    private Task ChangeScopeAsync(ClipboardQuery scope, string name)
     {
-        try
-        {
-            var results = await loader();
-            if (ct.IsCancellationRequested)
-            {
-                return;
-            }
-
-            await ApplyResultsAsync(results, label);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception)
-        {
-            await _dispatcher.PostAsync(() => StatusText = "加载失败");
-        }
+        IsQueueView = false; _scope = scope; ActiveList = name;
+        return RefreshAsync();
     }
-
-    private async Task ApplyResultsAsync(IReadOnlyList<ClipboardItem> results, string label)
+    public Task ShowHistoryAsync() => ChangeScopeAsync(new(), "全部历史");
+    public Task ShowFavoritesAsync() => ChangeScopeAsync(new() { FavoritesOnly = true }, "收藏");
+    public Task ShowTypeAsync(ClipboardType type) => ChangeScopeAsync(new() { Type = type }, type switch
+    { ClipboardType.Image => "图片", ClipboardType.Url => "链接", ClipboardType.File => "文件", _ => "代码" });
+    public Task ShowGroupAsync(string group) => ChangeScopeAsync(new() { Group = group }, group);
+    public Task FilterAsync(string source, DateTime? since, ClipboardType? type)
     {
-        _lastResults = results;
-        await _dispatcher.PostAsync(
-            () =>
-            {
-                StatusText = $"{label} · {results.Count} 条";
-                IsSearching = false;
-
-                // 结果集与当前显示一致时复用现有 VM，避免整体重建导致重新实例化与布局闪烁。
-                if (Items.Count == results.Count
-                    && Items.Select(i => i.Item.Id).SequenceEqual(results.Select(r => r.Id)))
-                {
-                    SelectedItem = Items.Count > 0 ? Items[0] : null;
-                    return;
-                }
-
-                Items = new ObservableCollection<ClipboardItemViewModel>(
-                    results.Select(item => new ClipboardItemViewModel(item, _imageCache)));
-                // 列表为空时必须清空选中，避免操作作用于不可见条目。
-                SelectedItem = Items.Count > 0 ? Items[0] : null;
-            });
+        IsQueueView = false; _scope = _scope with { Source = source, Since = since, Type = type };
+        return RefreshAsync();
     }
-
-    /// <summary>
-    /// 按类型显示最近条目（Dock 顶部标签栏使用）：始终查库，
-    /// 避免基于上一个视图的内存结果集过滤导致数据错乱。
-    /// </summary>
-    public Task ShowTypeAsync(ClipboardType type)
+    public ClipboardQuery GetFilters() => _scope;
+    public Task<IReadOnlyList<string>> GetGroupNamesAsync() => _history.GetGroupNamesAsync(CancellationToken.None);
+    public Task<IReadOnlyList<Pinboard>> GetPinboardsAsync() => _workspace.GetPinboardsAsync(CancellationToken.None);
+    public Task SavePinboardAsync(Pinboard board, string? oldName) => _workspace.SavePinboardAsync(board, oldName, CancellationToken.None);
+    public async Task DeletePinboardAsync(string name)
     {
-        _view = "history";
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        var ct = _searchCts.Token;
-        var label = type switch
-        {
-            ClipboardType.Url => "链接",
-            ClipboardType.Code => "代码",
-            ClipboardType.Image => "图片",
-            _ => "条目",
-        };
-        return LoadAsync(() => _history.GetByTypeAsync(type, 0, PageSize, ct), label, ct);
+        await _workspace.DeletePinboardAsync(name, CancellationToken.None);
+        if (CurrentGroup == name) await ShowHistoryAsync();
     }
-
-    /// <summary>
-    /// 显示指定自定义分组的内容（标签栏动态标签，始终查库）。
-    /// </summary>
-    public Task ShowGroupAsync(string group)
+    public Task ReorderPinboardsAsync(IReadOnlyList<string> names) => _workspace.ReorderPinboardsAsync(names, CancellationToken.None);
+    public async Task SaveTextAsync(ClipboardItemViewModel? original, string title, string text)
     {
-        _view = "group";
-        _searchCts?.Cancel();
-        _searchCts = new CancellationTokenSource();
-        var ct = _searchCts.Token;
-        return LoadAsync(() => _history.GetByGroupAsync(group, 0, PageSize, ct), group, ct);
+        await _workspace.SaveTextAsync(original?.Item, title, text, CancellationToken.None);
+        await RefreshAsync();
     }
-
-    public async Task PasteSelectedAsync()
+    public async Task<string> ExtractTextAsync(ClipboardItemViewModel item, CancellationToken ct, string? languageTag = null, bool enhanceSmallText = false)
     {
-        if (SelectedItem is null)
-        {
-            return;
-        }
-
-        await _quickPaste.PasteAsync(SelectedItem.Item, _pasteTargetWindow, CancellationToken.None);
+        var text = await _ocr.ExtractAsync(item.Item.ImagePath ?? throw new InvalidOperationException("图片不存在。"), ct, languageTag, enhanceSmallText);
+        ct.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(text)) { StatusText = "未识别到文字"; return text; }
+        item.Item.OcrText = text;
+        await _workspace.UpdateContentAsync(item.Item, string.Join('\n', item.Item.Title, text), ct);
+        StatusText = string.IsNullOrWhiteSpace(text) ? "未识别到文字" : "图片文字已识别，可通过搜索查找";
+        return text;
     }
-
-    /// <summary>
-    /// 复制选中项到剪贴板（Ctrl+C）：只写入，不激活窗口、不发送粘贴（规范 §30）。
-    /// </summary>
-    public async Task CopySelectedAsync()
-    {
-        if (SelectedItem is null)
-        {
-            return;
-        }
-
-        var operationId = Guid.NewGuid().ToString("N");
-        await _writer.WriteAsync(SelectedItem.Item, operationId, CancellationToken.None);
-        StatusText = $"已复制 · {SelectedItem.CardTitle}";
-    }
-
-    /// <summary>
-    /// 键盘左右方向键在卡片间移动选中项（规范 §29）。offset 为 -1 左移、+1 右移，
-    /// 到达边界时保持不动；无选中项时定位到首项。
-    /// </summary>
-    public ClipboardItemViewModel? MoveSelection(int offset)
-    {
-        if (Items.Count == 0)
-        {
-            return null;
-        }
-
-        var currentIndex = SelectedItem is null ? -1 : Items.IndexOf(SelectedItem);
-        var nextIndex = Math.Clamp(currentIndex + offset, 0, Items.Count - 1);
-        SelectedItem = Items[nextIndex];
-        return SelectedItem;
-    }
-
-    /// <summary>全部现有分组名称（分组对话框使用）。</summary>
-    public Task<IReadOnlyList<string>> GetGroupNamesAsync()
-        => _history.GetGroupNamesAsync(CancellationToken.None);
-
-    /// <summary>设置/移除选中项的分组。</summary>
-    public Task SetGroupAsync(ClipboardItemViewModel item, string? group)
-        => item.SetGroupAsync(_history, group);
-
+    public Task SetGroupAsync(ClipboardItemViewModel item, string? group) => item.SetGroupAsync(_history, group);
     public async Task ToggleFavoriteAsync(ClipboardItemViewModel item)
     {
-        if (item is null)
-        {
-            return;
-        }
-
         await item.ToggleFavoriteAsync(_history);
-        if (_view == "favorites" && !item.IsFavorite)
-        {
-            RemoveFromView(item, "已取消收藏");
-        }
+        if (_scope.FavoritesOnly && !item.IsFavorite) await RefreshAsync();
     }
-
-    /// <summary>
-    /// 从当前视图移除条目：同步选中项与计数（修复删除/取消收藏后操作残留于不可见条目的缺陷）。
-    /// </summary>
-    private void RemoveFromView(ClipboardItemViewModel item, string reason)
-    {
-        var wasSelected = ReferenceEquals(SelectedItem, item);
-        var index = Items.IndexOf(item);
-        Items.Remove(item);
-
-        if (wasSelected)
-        {
-            // 就近选择同位置的下一个条目，保持键盘流连续。
-            SelectedItem = index < Items.Count ? Items[index] : Items.LastOrDefault();
-        }
-
-        StatusText = $"{reason} · {Items.Count} 条";
-    }
-
     public async Task DeleteAsync(ClipboardItemViewModel item)
     {
-        if (item is null)
-        {
-            return;
-        }
-
         await _history.DeleteAsync(item.Item.Id, CancellationToken.None);
-        RemoveFromView(item, "已删除 1 条");
+        _queue.RemoveAll(i => i.Id == item.Item.Id); UpdateQueueLabel();
+        await RefreshAsync();
     }
-
-    public void Dispose()
+    public async Task BatchAsync(IReadOnlyList<ClipboardItemViewModel> selection, string action, string? group = null)
     {
-        _debouncer.Dispose();
-        _searchCts?.Cancel();
-        _searchCts?.Dispose();
-        GC.SuppressFinalize(this);
+        await _workspace.ApplyBatchAsync(selection.Select(i => i.Item.Id).ToArray(), action, group, CancellationToken.None);
+        if (action == "delete")
+        {
+            var ids = selection.Select(i => i.Item.Id).ToHashSet();
+            _queue.RemoveAll(i => ids.Contains(i.Id)); UpdateQueueLabel();
+        }
+        await RefreshAsync();
     }
+    public async Task<bool> PasteCurrentAsync(bool plainText = false)
+    {
+        if (SelectedItem is null || _pasteBusy) return false;
+        _pasteBusy = true;
+        try
+        {
+            var item = SelectedItem.Item;
+            var plain = plainText || PastePlainTextOnce || _settings.Current.AlwaysPastePlainText;
+            PastePlainTextOnce = false;
+            if (plain && item.Text is not null) item = new ClipboardItem { Id = item.Id, Type = ClipboardType.Text, Text = item.Text };
+            var success = await _paste.PasteAsync(item, _target, CancellationToken.None);
+            if (!success) StatusText = "粘贴失败，可用 Ctrl+C 复制后手动粘贴";
+            else if (IsQueueView)
+            {
+                _queue.RemoveAll(i => i.Id == item.Id); UpdateQueueLabel();
+                await RefreshAsync();
+            }
+            return success;
+        }
+        finally { _pasteBusy = false; }
+    }
+    public async Task PasteSelectedAsync() => await PasteCurrentAsync();
+    public async Task CopySelectedAsync()
+    {
+        if (SelectedItem is null) return;
+        try
+        {
+            await _writer.WriteAsync(SelectedItem.Item, Guid.NewGuid().ToString("N"), CancellationToken.None);
+            StatusText = "已复制到剪贴板";
+            CopyFeedback?.Invoke("已复制，可到其他应用粘贴", true);
+        }
+        catch (Exception ex)
+        {
+            LogOperationFailed(_logger, ex);
+            StatusText = "复制失败，请重试";
+            CopyFeedback?.Invoke("复制失败，请重试；剪贴板可能正被其他应用占用", false);
+        }
+    }
+    public ClipboardItemViewModel? MoveSelection(int offset)
+    {
+        if (Items.Count == 0) return null;
+        SelectedItem = Items[Math.Clamp((SelectedItem is null ? -1 : Items.IndexOf(SelectedItem)) + offset, 0, Items.Count - 1)];
+        return SelectedItem;
+    }
+    public void AddToQueue(IEnumerable<ClipboardItemViewModel> items)
+    {
+        foreach (var item in items)
+            if (!_queue.Any(i => i.Id == item.Item.Id)) _queue.Add(item.Item);
+        UpdateQueueLabel(); StatusText = "已加入队列 · 打开队列后按 Enter 逐项粘贴";
+    }
+    public Task ShowQueueAsync() { IsQueueView = true; ActiveList = "粘贴队列"; return RefreshAsync(); }
+    public async Task ReverseQueueAsync() { _queue.Reverse(); if (IsQueueView) await RefreshAsync(); }
+    public async Task ClearQueueAsync() { _queue.Clear(); UpdateQueueLabel(); if (IsQueueView) await RefreshAsync(); }
+    private void UpdateQueueLabel() => QueueLabel = _queue.Count == 0 ? "粘贴队列" : $"队列 · {_queue.Count}";
+    public void Pause(int minutes)
+    {
+        _settings.Update(s => { s.PauseMonitoring = minutes != 0; s.PauseUntil = minutes > 0 ? DateTime.Now.AddMinutes(minutes) : null; });
+        StatusText = minutes == 0 ? "已恢复记录" : $"已暂停记录 {minutes} 分钟";
+    }
+    public void ReportError(Exception ex)
+    {
+        LogOperationFailed(_logger, ex);
+        StatusText = "操作失败，请重试；收藏板名称不能重复。";
+    }
+    [LoggerMessage(Level = LogLevel.Error, Message = "Clipboard workspace operation failed")]
+    private static partial void LogOperationFailed(ILogger logger, Exception exception);
+    public void Dispose() { _queryCts?.Cancel(); _queryCts?.Dispose(); _debouncer.Dispose(); GC.SuppressFinalize(this); }
 }

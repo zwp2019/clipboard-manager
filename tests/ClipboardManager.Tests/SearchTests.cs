@@ -70,7 +70,7 @@ public sealed class SearchTests : IDisposable
     {
         await SeedAsync();
 
-        var results = await _repository.SearchAsync("configuredservices", 0, 20, CancellationToken.None);
+        var results = await _repository.SearchAsync("configureservices", 0, 20, CancellationToken.None);
 
         Assert.NotNull(results);
         Assert.Contains(results, r => r.Text!.Contains("ConfigureServices"));

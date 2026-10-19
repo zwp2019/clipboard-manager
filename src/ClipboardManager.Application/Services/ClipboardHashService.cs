@@ -19,6 +19,8 @@ public sealed class ClipboardHashService : IClipboardHashService
             ClipboardType.Image => HashBytes(data.ImageBytes),
             ClipboardType.File => HashString(
                 string.Join('\n', data.FilePaths?.OrderBy(x => x, StringComparer.Ordinal) ?? Enumerable.Empty<string>())),
+            ClipboardType.Html => HashString(data.Html ?? data.Text ?? string.Empty),
+            ClipboardType.Rtf => HashString(data.Rtf ?? data.Text ?? string.Empty),
             _ => HashString(data.Text ?? data.Html ?? data.Rtf ?? string.Empty),
         };
     }

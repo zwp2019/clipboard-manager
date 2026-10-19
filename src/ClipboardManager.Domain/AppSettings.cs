@@ -42,8 +42,17 @@ public sealed class AppSettings
     /// <summary>是否暂停监控（规范 §31 托盘菜单）。</summary>
     public bool PauseMonitoring { get; set; }
 
+    public DateTime? PauseUntil { get; set; }
+
+    public bool AlwaysPastePlainText { get; set; }
+
     /// <summary>托盘菜单退出时是否需要确认。</summary>
     public bool ConfirmOnExit { get; set; } = true;
 
-    public AppSettings Clone() => (AppSettings)MemberwiseClone();
+    public AppSettings Clone()
+    {
+        var clone = (AppSettings)MemberwiseClone();
+        clone.ExcludedApplications = new List<string>(ExcludedApplications);
+        return clone;
+    }
 }

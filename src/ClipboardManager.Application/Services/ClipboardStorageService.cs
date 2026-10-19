@@ -33,17 +33,11 @@ public sealed partial class ClipboardStorageService : IClipboardStorageService
         string? imageExtension,
         CancellationToken ct)
     {
-        // 1. 图片先落盘（后台线程处理，规范 §21）
-        if (item.Type == ClipboardType.Image && imageBytes is { Length: > 0 })
-        {
-            var result = await _imageStorage.SaveImageAsync(imageBytes, imageExtension ?? "png", ct);
-            item.ImagePath = result.ImagePath;
-            item.ThumbnailPath = result.ThumbnailPath;
-        }
-
-        // 2. 去重：命中则仅刷新时间戳移动到最前
-        var existing = await _repository.FindByHashAsync(item.Hash, ct);
-        if (existing is not null && _settingsService.Current.EnableDeduplication)
+        // Deduplicate before writing image files, otherwise repeated images leave
+        // unused originals and thumbnails on disk even when no row is inserted.
+        var existing = _settingsService.Current.EnableDeduplication
+            ? await _repository.FindByHashAsync(item.Hash, ct) : null;
+        if (existing is not null)
         {
             await _repository.TouchAsync(existing.Id, ct);
             if (_logger.IsEnabled(LogLevel.Debug))
@@ -52,6 +46,13 @@ public sealed partial class ClipboardStorageService : IClipboardStorageService
             }
 
             return existing;
+        }
+
+        if (item.Type == ClipboardType.Image && imageBytes is { Length: > 0 })
+        {
+            var result = await _imageStorage.SaveImageAsync(imageBytes, imageExtension ?? "png", ct);
+            item.ImagePath = result.ImagePath;
+            item.ThumbnailPath = result.ThumbnailPath;
         }
 
         // 3. 入库

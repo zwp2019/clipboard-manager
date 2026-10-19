@@ -21,6 +21,7 @@ namespace ClipboardManager.App;
 /// </summary>
 public sealed partial class MainWindow : Window, IDisposable
 {
+    private const int DockHeight = 296;
     private readonly AppWindow _appWindow;
     private readonly nint _hwnd;
 
@@ -52,11 +53,15 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         InitializeComponent();
         ViewModel = viewModel;
+        ViewModel.CopyFeedback += ShowCopyFeedback;
+        RootGrid.SizeChanged += (_, _) => NavigationCluster.MaxWidth = Math.Max(120, RootGrid.ActualWidth - 112);
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd));
-        _outsideClickDetector = new OutsideClickDetector(() => HideRequested?.Invoke(this, EventArgs.Empty));
+        _outsideClickDetector = new OutsideClickDetector(() => { if (!IsInteractionOpen && !App.IsPreview) HideRequested?.Invoke(this, EventArgs.Empty); });
         ConfigureWindow();
+        RootGrid.ActualThemeChanged += (_, _) => { UpdateBackdropTheme(); HighlightTab(_highlighted); };
+        UpdateBackdropTheme();
 
         // 点击窗口外区域自动隐藏（Paste 风格 launcher 行为）：
         // 失焦事件兜底（Alt+Tab 等），窗口外点击由低级鼠标钩子精确覆盖（任务栏/桌面等不触发失焦的场景）。
@@ -64,6 +69,8 @@ public sealed partial class MainWindow : Window, IDisposable
 
         // 全局键盘导航：左右箭头在卡片间移动（handledEventsToo 以覆盖 TextBox 已消费的光标键）。
         RootGrid.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnGlobalKeyDown), true);
+        RootGrid.CharacterReceived += RootGrid_CharacterReceived;
+        TrackFlyout(OverflowButton.Flyout);
 
         // 首次加载后依据现有分组重建标签栏。
         ((Microsoft.UI.Xaml.FrameworkElement)Content).Loaded += async (_, _) => await RefreshGroupTabsAsync();
@@ -71,12 +78,12 @@ public sealed partial class MainWindow : Window, IDisposable
 
     private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
     {
-        if (args.WindowActivationState == WindowActivationState.Deactivated)
+        if (args.WindowActivationState == WindowActivationState.Deactivated && !IsInteractionOpen && !App.IsPreview)
         {
             _outsideClickDetector.Stop();
             HideRequested?.Invoke(this, EventArgs.Empty);
         }
-        else
+        else if (!IsInteractionOpen)
         {
             // 窗口显示（启动激活 / 热键唤起 / 托盘打开）即开始监听窗口外点击。
             _outsideClickDetector.Start(_hwnd);
@@ -86,14 +93,14 @@ public sealed partial class MainWindow : Window, IDisposable
     private void ConfigureWindow()
     {
         // 底部 Dock 弹窗（Paste 风格）：默认尺寸会在显示时按屏幕重新计算。
-        // 高度按 DPI 换算（约 290 DIP），避免高缩放屏下截断。
+        // Keep the compact strip in DIPs so physical pixels do not inflate the UI.
         var dpi = NativeMethods.GetDpiForWindow(_hwnd);
         if (dpi == 0)
         {
             dpi = 96;
         }
 
-        var height = (int)Math.Round(290 * dpi / 96.0);
+        var height = (int)Math.Round(DockHeight * dpi / 96.0);
         NativeMethods.SetWindowPos(_hwnd, nint.Zero, 0, 0, 1200, height, NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOMOVE);
 
         // 移除系统活动窗口描边（Win11 DWM 边框），失败则静默忽略（Win10 无此属性）。
@@ -114,7 +121,7 @@ public sealed partial class MainWindow : Window, IDisposable
             ApplyLegacyRoundedCorners(1200, height, dpi);
         }
 
-        // Win7 风格毛玻璃：Acrylic 半透明模糊 + 主题着色；不支持时保留实色背景。
+        // Desktop Acrylic blurs the windows behind this transient launcher.
         TryEnableAcrylic();
 
         // 窗口 / 任务栏图标（Assets/app.ico 由 csproj 复制到输出目录）。
@@ -151,38 +158,41 @@ public sealed partial class MainWindow : Window, IDisposable
     }
 
     /// <summary>
-    /// Win7 风格毛玻璃：Acrylic 半透明模糊背景（深色着色 + 模糊），等效于 Win7 Aero 玻璃。
-    /// 不支持（旧版 Win10 / 驱动限制 / 系统关闭透明效果）时静默回退，保持原有实色背景。
+    /// Initialize both dispatcher queues before creating the native backdrop.
+    /// Log initialization failures instead of silently presenting a solid panel as acrylic.
     /// </summary>
     private void TryEnableAcrylic()
     {
         try
         {
-            if (!DesktopAcrylicController.IsSupported())
+            if (!DesktopAcrylicController.IsSupported() || new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast)
             {
+                Serilog.Log.Information("Launcher acrylic unavailable or high contrast enabled; using solid background");
                 return;
             }
-
-            _acrylicController = new DesktopAcrylicController
-            {
-                // 深色着色 + 强模糊，呈现明显玻璃质感。
-                TintColor = Windows.UI.Color.FromArgb(255, 28, 28, 30),
-                TintOpacity = 0.55f,
-                LuminosityOpacity = 0.12f,
-            };
+            // Microsoft.UI.Dispatching and Windows.System queues are distinct.
+            // The composition system backdrop requires the latter as well.
+            DispatcherQueue.EnsureSystemDispatcherQueue();
+            _acrylicController = new DesktopAcrylicController { Kind = DesktopAcrylicKind.Thin };
             _backdropConfiguration = new SystemBackdropConfiguration
             {
                 IsInputActive = true,
-                Theme = SystemBackdropTheme.Dark,
+                Theme = RootGrid.ActualTheme == ElementTheme.Light ? SystemBackdropTheme.Light : SystemBackdropTheme.Dark,
             };
-            _acrylicController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+            if (!_acrylicController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>()))
+                throw new InvalidOperationException("Unable to attach the launcher acrylic backdrop.");
             _acrylicController.SetSystemBackdropConfiguration(_backdropConfiguration);
 
             RootGrid.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            Serilog.Log.Information("Launcher acrylic initialized; system advanced effects enabled: {Enabled}", new Windows.UI.ViewManagement.UISettings().AdvancedEffectsEnabled);
         }
-        catch
+        catch (Exception ex)
         {
-            // 不支持时保留 XAML 中的实色背景。
+            _acrylicController?.Dispose();
+            _acrylicController = null;
+            _backdropConfiguration = null;
+            RootGrid.Background = ThemeBrush("BackgroundBrush");
+            Serilog.Log.Warning(ex, "Launcher acrylic initialization failed; using solid background");
         }
     }
 
@@ -194,7 +204,7 @@ public sealed partial class MainWindow : Window, IDisposable
     private void ApplyLegacyRoundedCorners(int width, int height, uint dpi)
     {
         // 圆角半径按 DPI 换算（约 12 DIP）。
-        var radius = Math.Max(8, (int)Math.Round(12 * dpi / 96.0));
+        var radius = Math.Max(8, (int)Math.Round(20 * dpi / 96.0));
         var region = NativeMethods.CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2);
         if (region == nint.Zero)
         {
@@ -215,8 +225,11 @@ public sealed partial class MainWindow : Window, IDisposable
     /// <summary>释放 Acrylic 毛玻璃控制器（应用退出时由 App 调用）。</summary>
     public void Dispose()
     {
+        ViewModel.CopyFeedback -= ShowCopyFeedback;
+        _copyNoticeTimer?.Stop();
         _acrylicController?.Dispose();
         _acrylicController = null;
+        _outsideClickDetector.Stop();
     }
 
     /// <summary>
@@ -240,22 +253,24 @@ public sealed partial class MainWindow : Window, IDisposable
 
         var work = info.rcWork;
 
-        // 窗口高度按 DPI 缩放：布局约需 290 DIP（头部 52 + 卡片 196 + 底部 32）。
-        // SetWindowPos 使用物理像素，高缩放屏（125%/150%）下若不换算会截断卡片区。
+        // Navigation 56 + card strip 222 + quiet status 18 + outer border.
         var dpi = NativeMethods.GetDpiForWindow(_hwnd);
         if (dpi == 0)
         {
             dpi = 96;
         }
 
-        var height = (int)Math.Round(290 * dpi / 96.0);
+        var scale = dpi / 96.0;
+        var height = (int)Math.Round(DockHeight * scale);
 
         // 宽度占满整个工作区（横向铺满，无侧边间隙）。
-        var width = work.Right - work.Left;
+        var inset = Math.Max(8, (int)Math.Round(8 * scale));
+        height = Math.Min(height, work.Bottom - work.Top - inset * 2);
+        var width = work.Right - work.Left - inset * 2;
 
         // 贴底居中。
-        var x = work.Left;
-        var y = work.Bottom - height - 12;
+        var x = work.Left + inset;
+        var y = work.Bottom - height - inset;
 
         NativeMethods.SetWindowPos(_hwnd, nint.Zero, x, y, width, height, NativeMethods.SWP_NOZORDER);
 
@@ -269,419 +284,16 @@ public sealed partial class MainWindow : Window, IDisposable
     public void ShowWindow()
     {
         Activate();
-        SearchBox.Focus(FocusState.Programmatic);
+        if (_searchOpen) SearchBox.Focus(FocusState.Programmatic);
+        else HistoryList.Focus(FocusState.Programmatic);
     }
 
     public void HideWindow()
     {
+        _copyNoticeTimer?.Stop();
+        CopyNotice.IsOpen = false;
         _outsideClickDetector.Stop();
         _appWindow.Hide();
     }
 
-    // ---- 键盘操作（规范 §29：↑↓/←→ 选择、Enter 复制、Ctrl+C 复制、Esc 关闭）----
-
-    private static bool IsCtrlDown()
-        => Microsoft.UI.Input.InputKeyboardSource
-            .GetKeyStateForCurrentThread(VirtualKey.Control)
-            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-
-    /// <summary>
-    /// 全局左右箭头导航：焦点在含文本的输入框内时保留光标移动，其余场景用于在卡片间切换选中项。
-    /// </summary>
-    private void OnGlobalKeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        if (e.Key is not (VirtualKey.Left or VirtualKey.Right))
-        {
-            return;
-        }
-
-        if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(Content.XamlRoot) is TextBox { Text.Length: > 0 })
-        {
-            return;
-        }
-
-        var item = ViewModel.MoveSelection(e.Key == VirtualKey.Left ? -1 : 1);
-        if (item is not null)
-        {
-            HistoryList.ScrollIntoView(item);
-        }
-        e.Handled = true;
-    }
-
-    /// <summary>
-    /// 复制选中项并关闭窗口（Enter / 单击卡片的统一行为，规范 §29）。
-    /// </summary>
-    private async Task CopySelectedAndHideAsync()
-    {
-        if (ViewModel.SelectedItem is null)
-        {
-            return;
-        }
-
-        await ViewModel.CopySelectedAsync();
-        HideRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        if (e.Key == VirtualKey.Enter)
-        {
-            var query = SearchBox.Text?.Trim() ?? string.Empty;
-            if (query.Length == 0)
-            {
-                // 搜索框为空时回车 = 复制当前选中项（与单击卡片一致），方便唤起后直接回车取用。
-                _ = CopySelectedAndHideAsync();
-            }
-            else
-            {
-                // 有关键词时回车一律执行搜索。
-                _ = ViewModel.SearchNowAsync(query);
-            }
-            e.Handled = true;
-        }
-        else if (e.Key == VirtualKey.Escape)
-        {
-            HideRequested?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-        }
-        else if (e.Key == VirtualKey.C && IsCtrlDown())
-        {
-            _ = ViewModel.CopySelectedAsync();
-            e.Handled = true;
-        }
-        else if (e.Key == VirtualKey.G && IsCtrlDown())
-        {
-            // 搜索框内输入 G 会打字，分组需 Ctrl+G；列表聚焦时直接按 G。
-            _ = ShowGroupDialogAsync();
-            e.Handled = true;
-        }
-    }
-
-    /// <summary>
-    /// 点击卡片：复制到剪贴板并关闭窗口（快速使用，规范 §29）。
-    /// </summary>
-    private async void HistoryList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is ClipboardItemViewModel item)
-        {
-            ViewModel.SelectedItem = item;
-            await CopySelectedAndHideAsync();
-        }
-    }
-
-    private void HistoryList_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-        => PasteRequested?.Invoke(this, EventArgs.Empty);
-
-    private void HistoryList_KeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        if (e.Key == VirtualKey.Enter)
-        {
-            // 回车 = 复制当前选中项并关闭（与单击卡片一致）；快速粘贴走双击。
-            _ = CopySelectedAndHideAsync();
-            e.Handled = true;
-        }
-        else if (e.Key == VirtualKey.Escape)
-        {
-            HideRequested?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-        }
-        else if (e.Key == VirtualKey.C && IsCtrlDown())
-        {
-            _ = ViewModel.CopySelectedAsync();
-            e.Handled = true;
-        }
-        else if (e.Key == VirtualKey.G)
-        {
-            _ = ShowGroupDialogAsync();
-            e.Handled = true;
-        }
-    }
-
-    // ---- 顶部标签栏 ----
-
-    private void Tab_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button)
-        {
-            return;
-        }
-
-        // 重置所有标签为未选中样式（Paste 风格：中性 Surface 色）。
-        var surface = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["SurfaceBrush"];
-        var secondary = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextSecondaryBrush"];
-        foreach (var child in CategoryPanel.Children)
-        {
-            if (child is Button tab && tab != button)
-            {
-                tab.Background = surface;
-                tab.Foreground = secondary;
-            }
-        }
-
-        // 高亮当前标签：强调色。
-        var accent = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentBrush"];
-        button.Background = accent;
-        button.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255));
-
-        // 切换标签时同步清空搜索框；其挂起的防抖回调会被随后的新查询 CTS 取消。
-        ViewModel.SearchText = string.Empty;
-
-        // 自定义分组标签（Tag 存组名）→ 查询该分组内容。
-        if (button.Tag is string groupName)
-        {
-            ViewModel.SearchText = string.Empty;
-            _ = ViewModel.ShowGroupAsync(groupName);
-            return;
-        }
-
-        // 标签切换全部重新查库，避免基于上一视图内存结果过滤导致数据错乱。
-        switch (button.Content?.ToString())
-        {
-            case "收藏":
-                _ = ViewModel.ShowFavoritesAsync();
-                break;
-            case "链接":
-                _ = ViewModel.ShowTypeAsync(ClipboardType.Url);
-                break;
-            case "代码":
-                _ = ViewModel.ShowTypeAsync(ClipboardType.Code);
-                break;
-            case "图片":
-                _ = ViewModel.ShowTypeAsync(ClipboardType.Image);
-                break;
-            default:
-                _ = ViewModel.ShowHistoryAsync();
-                break;
-        }
-    }
-
-    // ---- 工具栏 ----
-
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
-        => SettingsRequested?.Invoke(this, EventArgs.Empty);
-
-    // ---- 自定义分组标签栏（规范 §33：分组即标签） ----
-
-    /// <summary>“+” 按钮：新建自定义分组标签。</summary>
-    private async void AddGroupButton_Click(object sender, RoutedEventArgs e)
-    {
-        var input = new TextBox { MinWidth = 300, PlaceholderText = "输入分组名称" };
-        var dialog = new ContentDialog
-        {
-            Title = "新建分组标签",
-            Content = input,
-            PrimaryButtonText = "创建",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = Content.XamlRoot,
-        };
-
-        var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary)
-        {
-            return;
-        }
-
-        var name = input.Text.Trim();
-        if (string.IsNullOrEmpty(name))
-        {
-            return;
-        }
-
-        await RefreshGroupTabsAsync();
-        HighlightTab(name);
-    }
-
-    /// <summary>
-    /// 依据数据库现有分组重建标签栏中的动态标签（插入到 “+” 按钮之前）。
-    /// </summary>
-    public async Task RefreshGroupTabsAsync()
-    {
-        var groups = await ViewModel.GetGroupNamesAsync();
-
-        var surface = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["SurfaceBrush"];
-        var secondary = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextSecondaryBrush"];
-        var uiFont = (Microsoft.UI.Xaml.Media.FontFamily)Microsoft.UI.Xaml.Application.Current.Resources["FontFamilyUi"];
-
-        // 移除已消失的分组标签。
-        var stale = CategoryPanel.Children
-            .OfType<Button>()
-            .Where(b => b.Tag is string tag && !groups.Contains(tag))
-            .ToList();
-        foreach (var button in stale)
-        {
-            CategoryPanel.Children.Remove(button);
-        }
-
-        var addButton = CategoryPanel.Children.OfType<Button>().First(b => b.Name == "TabAddGroup");
-        var insertIndex = CategoryPanel.Children.IndexOf(addButton);
-        var existing = CategoryPanel.Children
-            .OfType<Button>()
-            .Where(b => b.Tag is string)
-            .Select(b => (string)b.Tag!)
-            .ToHashSet();
-
-        foreach (var group in groups)
-        {
-            if (!existing.Add(group))
-            {
-                continue;
-            }
-
-            var tab = new Button
-            {
-                Content = group,
-                Tag = group,
-                Padding = new Microsoft.UI.Xaml.Thickness(14, 6, 14, 6),
-                CornerRadius = new Microsoft.UI.Xaml.CornerRadius(16),
-                Background = surface,
-                Foreground = secondary,
-                BorderThickness = new Microsoft.UI.Xaml.Thickness(0),
-                FontFamily = uiFont,
-                FontSize = 12,
-            };
-            tab.Click += Tab_Click;
-
-            CategoryPanel.Children.Insert(Math.Min(insertIndex, CategoryPanel.Children.Count), tab);
-            insertIndex++;
-        }
-    }
-
-    /// <summary>按内容文本高亮指定标签（其余恢复中性色）。</summary>
-    private void HighlightTab(string content)
-    {
-        var surface = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["SurfaceBrush"];
-        var secondary = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["TextSecondaryBrush"];
-        var accent = (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentBrush"];
-
-        foreach (var child in CategoryPanel.Children)
-        {
-            if (child is not Button tab || tab.Name == "TabAddGroup")
-            {
-                continue;
-            }
-
-            var isActive = string.Equals(tab.Content?.ToString(), content, StringComparison.Ordinal);
-            tab.Background = isActive ? accent : surface;
-            tab.Foreground = isActive
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
-                : secondary;
-        }
-    }
-
-    // ---- 条目操作 ----
-
-    private void FavoriteButton_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is ClipboardItemViewModel item)
-        {
-            _ = ViewModel.ToggleFavoriteAsync(item);
-        }
-    }
-
-    /// <summary>分组按钮：对按钮所在卡片分组（未选中场景）。</summary>
-    private void GroupButton_Click(object sender, RoutedEventArgs e)
-    {
-        // 按钮所在卡片若不是当前选中项，先选中它。
-        if ((sender as FrameworkElement)?.DataContext is ClipboardItemViewModel item
-            && ViewModel.SelectedItem != item)
-        {
-            ViewModel.SelectedItem = item;
-        }
-
-        _ = ShowGroupDialogAsync();
-    }
-
-    /// <summary>
-    /// 分组对话框：选择现有分组或输入新分组名，已分组项可移出（规范 §33）。
-    /// </summary>
-    private async Task ShowGroupDialogAsync()
-    {
-        var item = ViewModel.SelectedItem;
-        if (item is null)
-        {
-            return;
-        }
-
-        var existingGroups = await ViewModel.GetGroupNamesAsync();
-
-        var combo = new ComboBox
-        {
-            MinWidth = 300,
-            PlaceholderText = "选择现有分组",
-            ItemsSource = existingGroups,
-        };
-        if (item.Item.GroupName is not null)
-        {
-            combo.SelectedItem = item.Item.GroupName;
-        }
-
-        var newGroupBox = new TextBox
-        {
-            MinWidth = 300,
-            PlaceholderText = "或输入新分组名称",
-        };
-
-        var panel = new StackPanel { Spacing = 12 };
-        panel.Children.Add(combo);
-        panel.Children.Add(newGroupBox);
-
-        var dialog = new ContentDialog
-        {
-            Title = $"分组：{item.CardTitle}",
-            Content = panel,
-            PrimaryButtonText = "保存",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = Content.XamlRoot,
-        };
-        if (item.Item.GroupName is not null)
-        {
-            dialog.SecondaryButtonText = "移出分组";
-        }
-
-        var result = await dialog.ShowAsync();
-        if (result == ContentDialogResult.Primary)
-        {
-            var name = string.IsNullOrWhiteSpace(newGroupBox.Text)
-                ? combo.SelectedItem as string
-                : newGroupBox.Text.Trim();
-            if (!string.IsNullOrEmpty(name))
-            {
-                await ViewModel.SetGroupAsync(item, name);
-            }
-        }
-        else if (result == ContentDialogResult.Secondary)
-        {
-            await ViewModel.SetGroupAsync(item, null);
-        }
-
-        // 归组/移出可能产生新分组或清空分组，同步标签栏。
-        _ = RefreshGroupTabsAsync();
-    }
-
-    private void DeleteButton_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is ClipboardItemViewModel item)
-        {
-            _ = ViewModel.DeleteAsync(item);
-        }
-    }
-
-    /// <summary>来源程序图标懒加载（UI 线程，规范 §22）。</summary>
-    private void SourceIcon_Loaded(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is ClipboardItemViewModel item)
-        {
-            item.EnsureSourceIcon();
-        }
-    }
-
-    private void Thumbnail_Loaded(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is ClipboardItemViewModel item)
-        {
-            item.EnsureThumbnail();
-        }
-    }
 }

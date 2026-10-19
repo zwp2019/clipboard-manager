@@ -5,6 +5,19 @@
 
 **Fast · Native · Reliable · Private · Beautiful**
 ![示例图](image.png)
+
+## 本地 Paste 风格体验
+
+- 单行收藏板导航、按需展开搜索、彩色类型卡片、来源应用图标；深色/浅色主题独立配色。
+- 收藏板可新建空板、改名、换色、排序和删除；旧分组自动迁移，板内条目不参与自动过期清理。
+- 关键词与来源应用、日期、类型组合查询；历史和搜索结果支持分页加载。
+- 条目编辑、重命名、新建常用文本，Space 查看全文/图片，Shift+Enter 纯文本粘贴。
+- Ctrl/Shift 多选，批量收藏、分组、删除；拖动内容到收藏板或其他应用。
+- 将所选内容加入本次会话的粘贴队列，可反转顺序、逐项粘贴。
+- 图片详情支持本地 Windows OCR，提取后的文字可搜索；图片卡片使用文件流解码，缺失/损坏缩略图会尝试重建。
+- 筛选、队列、批量操作、暂停记录和偏好设置位于右上角 `···` 菜单。
+
+详见 [本地体验与回测说明](docs/LOCAL_PASTE_EXPERIENCE.md)。
 ## 功能
 
 - 剪贴板监听（原生事件，非轮询）：Text / Image / URL / HTML / RTF / File
@@ -46,11 +59,16 @@ tests/
 ## 构建
 
 ```powershell
-# 还原 + 构建全部（默认 win-x64 自包含）
-dotnet build ClipboardManager.sln -c Release
+# 推荐从 Visual Studio Developer PowerShell 构建 WinUI（包含 PRI 打包任务）
+msbuild ClipboardManager.sln /restore /p:Configuration=Release
+
+# 普通 .NET 命令行可构建业务层并运行测试
+dotnet build src/ClipboardManager.Application -c Release
+dotnet build src/ClipboardManager.Data -c Release
+dotnet test tests/ClipboardManager.Tests -c Release
 
 # 构建 ARM64（修改 App.csproj 中 RuntimeIdentifier 为 win-arm64 后）
-dotnet build src/ClipboardManager.App/ClipboardManager.App.csproj -c Release
+msbuild src/ClipboardManager.App/ClipboardManager.App.csproj /restore /p:Configuration=Release
 
 # 仅构建可跨平台验证的纯 .NET 层（Domain/Application/Data/Tests）
 dotnet build src/ClipboardManager.Application -c Release
@@ -62,9 +80,8 @@ dotnet build src/ClipboardManager.Data -c Release
 ## 运行
 
 ```powershell
-dotnet run --project src/ClipboardManager.App -c Debug
-# 或直接运行
-.\src\ClipboardManager.App\bin\x64\Debug\net10.0-windows10.0.19041.0\win-x64\ClipboardManager.App.exe
+# 先从托盘退出旧版本，再运行新构建
+.\src\ClipboardManager.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\ClipboardManager.App.exe
 ```
 
 - 按 `Ctrl+Shift+V` 唤起 Launcher
@@ -99,7 +116,7 @@ dotnet test tests/ClipboardManager.Tests -c Release --filter "Category=Performan
 | 11 | 设置 | ✅ |
 | 12 | 隐私（排除应用） | ✅ |
 | 13 | 性能审查 | 🔄 需 Windows 环境压测 100k/500k |
-| 14 | 测试 | 🔄 代码已就绪，需 Windows 上 `dotnet test` |
+| 14 | 测试 | ✅ Windows Release 构建通过，71 项业务/集成/性能测试通过；桌面交互待用户回测 |
 | 15 | Windows 兼容性 | ⏳ 需真机验证（Win10/11、ARM64、RDP、UAC） |
 | 16 | 打包（MSIX/Installer） | ⏳ 未开始 |
 | 17 | 自动更新 | ⏳ 未开始 |
@@ -107,7 +124,7 @@ dotnet test tests/ClipboardManager.Tests -c Release --filter "Category=Performan
 
 ## 已知限制与风险
 
-1. **本项目在 macOS 上编写，未在本机编译验证**。包版本（WindowsAppSDK 1.7.3、.NET 10.0 等）若还原失败，请在 Windows 上用 `dotnet add package` 更新到最新稳定版。
+1. **WinUI 构建需要 Visual Studio 的打包任务**。若 `dotnet build` 提示缺少 `Microsoft.Build.Packaging.Pri.Tasks.dll`，请使用 Visual Studio Developer PowerShell 中的 `msbuild`。当前版本已通过 Windows 上的 Release 构建与 71 项自动化测试；视觉、DPI 和实际粘贴操作由用户回测。
 2. **管理员/UAC 窗口**：普通权限进程无法向管理员窗口注入 Ctrl+V（Windows UIPI 限制），快速粘贴对该场景失效，需以管理员运行。
 3. **FTS5 中文分词**：采用 bigram 方案；搜索短词（<3 字符）自动降级 LIKE，长词走全文索引。
 4. **恢复数据库**：需先退出应用再执行（数据库被占用时复制会失败）。

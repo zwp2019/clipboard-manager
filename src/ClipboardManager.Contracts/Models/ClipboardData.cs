@@ -28,6 +28,9 @@ public sealed class ClipboardData
     public string? SourceTitle { get; set; }
 
     public long Size { get; set; }
+
+    /// <summary>Internal operation identity, independent of notification delivery time.</summary>
+    public string? InternalWriteMarker { get; set; }
 }
 
 /// <summary>

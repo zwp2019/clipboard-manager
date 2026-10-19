@@ -58,4 +58,9 @@ public interface IInternalClipboardGuard
     string? CurrentOperationId { get; }
 
     IDisposable BeginOwnWrite(string operationId);
+
+    /// <summary>Persistent identity stored alongside the clipboard payload.</summary>
+    string CreateClipboardMarker(string operationId);
+
+    bool IsOwnClipboardMarker(string? marker);
 }

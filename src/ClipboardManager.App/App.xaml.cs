@@ -36,7 +36,10 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
         UnhandledException += OnUnhandledException;
     }
 
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    internal static bool IsPreview => Environment.GetCommandLineArgs().Contains("--preview", StringComparer.Ordinal)
+        || string.Equals(Path.GetFileName(Environment.ProcessPath), "ClipboardManager.Preview.exe", StringComparison.OrdinalIgnoreCase);
+
+    protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
         if (!AcquireSingleInstance())
         {
@@ -92,7 +95,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
             // 全局热键（规范 §28）：失败时托盘气泡告知用户（常见于热键被占用），并延迟自动重试。
             var hotkeyService = _services.GetRequiredService<IHotkeyService>();
             hotkeyService.HotkeyPressed += OnHotkeyPressed;
-            if (!hotkeyService.Register(settingsService.Current.Hotkey))
+            if (!IsPreview && !hotkeyService.Register(settingsService.Current.Hotkey))
             {
                 tray.ShowBalloon(
                     "快捷键注册失败",
@@ -113,20 +116,24 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
 
             // 剪贴板管道（规范 §11）
             var pipeline = _services.GetRequiredService<ClipboardPipelineService>();
-            pipeline.Start();
+            if (!IsPreview) pipeline.Start();
 
             // 历史过期后台清理（规范 §40）
-            _services.GetRequiredService<IHistoryCleanupService>().StartAsync(CancellationToken.None);
+            if (!IsPreview) _ = _services.GetRequiredService<IHistoryCleanupService>().StartAsync(CancellationToken.None);
 
             // 开机自启状态同步（规范 §32）
             var autoStart = _services.GetRequiredService<IAutoStartService>();
-            settingsService.Update(s => s.AutoStart = autoStart.IsEnabled());
+            if (!IsPreview) settingsService.Update(s => s.AutoStart = autoStart.IsEnabled());
 
             _quickPaste = _services.GetRequiredService<IQuickPasteService>();
 
+            if (IsPreview) await SeedPreviewAsync();
+            _previousForegroundWindow = ProcessHelper.GetForegroundWindow();
+            _mainWindow.ViewModel.SetPasteTarget(_previousForegroundWindow);
+
             // 启动即以底部横幅形态显示（Paste 风格 Dock 栏）。
             _mainWindow.PositionNearCursor();
-            _mainWindow.Activate();
+            _mainWindow.ShowWindow();
             _ = _mainWindow.ViewModel.RefreshAsync();
             RootElement = _mainWindow.Content as FrameworkElement;
 
@@ -151,7 +158,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
 
     private bool AcquireSingleInstance()
     {
-        _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
+        _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName + (IsPreview ? ".Preview" : ""), out var createdNew);
         return createdNew;
     }
 
@@ -193,7 +200,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
     private void ToggleMonitoring(bool paused)
     {
         var settings = _services!.GetRequiredService<ISettingsService>();
-        settings.Update(s => s.PauseMonitoring = paused);
+        settings.Update(s => { s.PauseMonitoring = paused; s.PauseUntil = null; });
         _services!.GetRequiredService<TrayIconService>().SetPaused(paused);
         if (_logger is not null)
         {
@@ -225,7 +232,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
             XamlRoot = _mainWindow.Content.XamlRoot,
         };
 
-        if (await dialog.ShowAsync() == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary)
+        if (await _mainWindow.ShowDialogAsync(dialog) == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary)
         {
             await _services!.GetRequiredService<IHistoryService>().ClearAsync(CancellationToken.None);
             if (_logger is not null)
@@ -237,6 +244,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
 
     private void ShowLauncher()
     {
+        if (_mainWindow?.HasOpenDialog == true) return;
         if (_mainWindow is null)
         {
             return;
@@ -263,8 +271,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
 
     private async Task PasteAndHideAsync()
     {
-        await _mainWindow!.ViewModel.PasteSelectedAsync();
-        HideLauncher();
+        if (await _mainWindow!.ViewModel.PasteCurrentAsync()) HideLauncher();
     }
 
     private void ShowSettingsWindow()

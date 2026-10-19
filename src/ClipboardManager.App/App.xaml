@@ -1,259 +1,159 @@
-<Application
-    x:Class="ClipboardManager.App.App"
+<Application x:Class="ClipboardManager.App.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls"/>
+                <ResourceDictionary Source="Styles/Glass.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <!-- Theme-dependent brushes live ONLY in theme dictionaries. A root-level
+                 brush with the same key overrides theme lookup in control templates. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <LinearGradientBrush x:Key="CardTextFadeBrush" StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#00FFFFFF" Offset="0"/><GradientStop Color="#FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="BackgroundBrush" Color="#F1F0EE"/>
+                    <SolidColorBrush x:Key="PanelTintBrush" Color="#66F6F4F0"/>
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#0D222126"/>
+                    <SolidColorBrush x:Key="SurfaceSelectedBrush" Color="#18222126"/>
+                    <SolidColorBrush x:Key="BorderBrush" Color="#12000000"/>
+                    <SolidColorBrush x:Key="PanelBorderBrush" Color="#90FFFFFF"/>
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#27272C"/>
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#737379"/>
+                    <SolidColorBrush x:Key="TextTertiaryBrush" Color="#74747C"/>
+                    <SolidColorBrush x:Key="AccentBrush" Color="#7166D8"/>
+                    <SolidColorBrush x:Key="AccentSoftBrush" Color="#14222126"/>
+                    <SolidColorBrush x:Key="SearchBrush" Color="#CCFFFFFF"/>
+                    <SolidColorBrush x:Key="PreviewPlaceholderBrush" Color="#F1F2F4"/>
+                    <SolidColorBrush x:Key="HoverOverlayBrush" Color="#06000000"/>
+                    <SolidColorBrush x:Key="TextControlBackground" Color="#CCFFFFFF"/>
+                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="TextControlForeground" Color="#27272C"/>
+                    <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#27272C"/>
+                    <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#27272C"/>
+                    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#74747C"/>
+                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#74747C"/>
+                    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#7166D8"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Default">
+                    <LinearGradientBrush x:Key="CardTextFadeBrush" StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#00292A2F" Offset="0"/><GradientStop Color="#292A2F" Offset="1"/>
+                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="BackgroundBrush" Color="#292A2F"/>
+                    <SolidColorBrush x:Key="PanelTintBrush" Color="#66292A2F"/>
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="#292A2F"/>
+                    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#14FFFFFF"/>
+                    <SolidColorBrush x:Key="SurfaceSelectedBrush" Color="#20FFFFFF"/>
+                    <SolidColorBrush x:Key="BorderBrush" Color="#14FFFFFF"/>
+                    <SolidColorBrush x:Key="PanelBorderBrush" Color="#22FFFFFF"/>
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F4F4F6"/>
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#B8B8C0"/>
+                    <SolidColorBrush x:Key="TextTertiaryBrush" Color="#B0B0B8"/>
+                    <SolidColorBrush x:Key="AccentBrush" Color="#B2A8FF"/>
+                    <SolidColorBrush x:Key="AccentSoftBrush" Color="#20FFFFFF"/>
+                    <SolidColorBrush x:Key="SearchBrush" Color="#D5393A40"/>
+                    <SolidColorBrush x:Key="PreviewPlaceholderBrush" Color="#32333B"/>
+                    <SolidColorBrush x:Key="HoverOverlayBrush" Color="#08FFFFFF"/>
+                    <SolidColorBrush x:Key="TextControlBackground" Color="#393A40"/>
+                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#393A40"/>
+                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#414249"/>
+                    <SolidColorBrush x:Key="TextControlForeground" Color="#F4F4F6"/>
+                    <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#F4F4F6"/>
+                    <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#F4F4F6"/>
+                    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#B0B0B8"/>
+                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#B0B0B8"/>
+                    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#B2A8FF"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="CardTextFadeBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="BackgroundBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="PanelTintBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="SurfaceBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{ThemeResource SystemColorHighlightColor}"/>
+                    <SolidColorBrush x:Key="SurfaceSelectedBrush" Color="{ThemeResource SystemColorHighlightColor}"/>
+                    <SolidColorBrush x:Key="BorderBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+                    <SolidColorBrush x:Key="PanelBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+                    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+                    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+                    <SolidColorBrush x:Key="TextTertiaryBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+                    <SolidColorBrush x:Key="AccentBrush" Color="{ThemeResource SystemColorHighlightColor}"/>
+                    <SolidColorBrush x:Key="AccentSoftBrush" Color="{ThemeResource SystemColorHighlightColor}"/>
+                    <SolidColorBrush x:Key="SearchBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="PreviewPlaceholderBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+                    <SolidColorBrush x:Key="HoverOverlayBrush" Color="Transparent"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
 
-            <!-- ============================================================ -->
-            <!--  Design Tokens（规范 §36、§55）                              -->
-            <!--  Paste 风格：中性深色背景 + 类型彩色识别条 + 克制留白         -->
-            <!-- ============================================================ -->
-
-            <!-- 色板：基础 -->
-            <Color x:Key="ColorBackgroundColor">#1C1C1E</Color>
-            <Color x:Key="ColorSurfaceColor">#2C2C2E</Color>
-            <Color x:Key="ColorSurfaceHoverColor">#3A3A3C</Color>
-            <Color x:Key="ColorSurfaceSelectedColor">#48484A</Color>
-            <Color x:Key="ColorBorderColor">#3F3F41</Color>
-
-            <!-- 色板：文本 -->
-            <Color x:Key="ColorTextPrimaryColor">#F5F5F7</Color>
-            <Color x:Key="ColorTextSecondaryColor">#AEAEB2</Color>
-            <Color x:Key="ColorTextTertiaryColor">#8E8E93</Color>
-
-            <!-- 色板：强调 -->
-            <Color x:Key="ColorAccentColor">#FF9F0A</Color>
-            <Color x:Key="ColorAccentSoftColor">#3A2E1A</Color>
-
-            <!-- 色板：类型识别色（Paste 风格彩色顶部条） -->
-            <Color x:Key="TypeTextColor">#8E8E93</Color>
-            <Color x:Key="TypeUrlColor">#0A84FF</Color>
-            <Color x:Key="TypeCodeColor">#BF5AF2</Color>
-            <Color x:Key="TypeImageColor">#FF375F</Color>
-            <Color x:Key="TypeFileColor">#30D158</Color>
-            <Color x:Key="TypeHtmlColor">#FF9F0A</Color>
-            <Color x:Key="TypeRtfColor">#64D2FF</Color>
-
-            <!-- SolidColorBrush 便于 XAML 绑定 -->
-            <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource ColorBackgroundColor}" />
-            <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource ColorSurfaceColor}" />
-            <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource ColorSurfaceHoverColor}" />
-            <SolidColorBrush x:Key="SurfaceSelectedBrush" Color="{StaticResource ColorSurfaceSelectedColor}" />
-            <!-- 半透明玻璃画刷：叠加在 Acrylic 模糊之上，保留大面积玻璃透出（Win7 Aero 质感） -->
-            <SolidColorBrush x:Key="SurfaceGlassBrush" Color="#D92C2C2E" />
-            <SolidColorBrush x:Key="BackgroundGlassBrush" Color="#731C1C1E" />
-            <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource ColorBorderColor}" />
-            <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource ColorTextPrimaryColor}" />
-            <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource ColorTextSecondaryColor}" />
-            <SolidColorBrush x:Key="TextTertiaryBrush" Color="{StaticResource ColorTextTertiaryColor}" />
-            <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource ColorAccentColor}" />
-            <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource ColorAccentSoftColor}" />
-
-            <!-- TextBox 深色化：覆盖聚焦/悬停时的浅色系统主题资源（修复搜索框聚焦变白） -->
-            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{StaticResource ColorSurfaceColor}" />
-            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{StaticResource ColorSurfaceColor}" />
-            <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
-            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
-            <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{StaticResource ColorTextPrimaryColor}" />
-            <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="{StaticResource ColorTextTertiaryColor}" />
-            <SolidColorBrush x:Key="TextControlButtonForeground" Color="{StaticResource ColorTextTertiaryColor}" />
-            <SolidColorBrush x:Key="TextControlButtonForegroundPointerOver" Color="{StaticResource ColorTextPrimaryColor}" />
-
-            <!-- 类型画笔 -->
-            <SolidColorBrush x:Key="TypeTextBrush" Color="{StaticResource TypeTextColor}" />
-            <SolidColorBrush x:Key="TypeUrlBrush" Color="{StaticResource TypeUrlColor}" />
-            <SolidColorBrush x:Key="TypeCodeBrush" Color="{StaticResource TypeCodeColor}" />
-            <SolidColorBrush x:Key="TypeImageBrush" Color="{StaticResource TypeImageColor}" />
-            <SolidColorBrush x:Key="TypeFileBrush" Color="{StaticResource TypeFileColor}" />
-            <SolidColorBrush x:Key="TypeHtmlBrush" Color="{StaticResource TypeHtmlColor}" />
-            <SolidColorBrush x:Key="TypeRtfBrush" Color="{StaticResource TypeRtfColor}" />
-
-            <!-- 圆角（规范 §39） -->
-            <CornerRadius x:Key="CornerRadiusWindow">18</CornerRadius>
-            <CornerRadius x:Key="CornerRadiusCard">14</CornerRadius>
-            <CornerRadius x:Key="CornerRadiusButton">8</CornerRadius>
-            <CornerRadius x:Key="CornerRadiusPill">16</CornerRadius>
-
-            <!-- 字体（规范 §37） -->
+            <SolidColorBrush x:Key="TypeTextBrush" Color="#FFBE00"/>
+            <SolidColorBrush x:Key="TypeUrlBrush" Color="#078BFA"/>
+            <SolidColorBrush x:Key="TypeImageBrush" Color="#FF4D68"/>
+            <SolidColorBrush x:Key="TypeCodeBrush" Color="#9170D4"/>
+            <SolidColorBrush x:Key="TypeFileBrush" Color="#2BB77B"/>
+            <SolidColorBrush x:Key="TypeColorBrush" Color="#7C8B99"/>
+            <SolidColorBrush x:Key="CardHeaderTextBrush" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="CardWarmHeaderTextBrush" Color="#4C3E17"/>
+            <SolidColorBrush x:Key="CardIconPlateBrush" Color="#F2FFFFFF"/>
+            <SolidColorBrush x:Key="CardImageBadgeBrush" Color="#8A202024"/>
+            <SolidColorBrush x:Key="PinboardFavoriteBrush" Color="#FFBE00"/>
             <FontFamily x:Key="FontFamilyUi">Segoe UI Variable, Microsoft YaHei UI</FontFamily>
             <FontFamily x:Key="FontFamilyMono">Cascadia Code, Consolas</FontFamily>
+            <x:Double x:Key="CardWidth">208</x:Double>
+            <x:Double x:Key="CardHeight">208</x:Double>
+            <CornerRadius x:Key="CornerRadiusWindow">20</CornerRadius>
+            <CornerRadius x:Key="CornerRadiusCard">14</CornerRadius>
 
-            <!-- 字号（规范 §38） -->
-            <x:Double x:Key="FontSizeCaption">11</x:Double>
-            <x:Double x:Key="FontSizeSecondary">12</x:Double>
-            <x:Double x:Key="FontSizeBody">13</x:Double>
-            <x:Double x:Key="FontSizeTitle">20</x:Double>
-
-            <!-- 卡片尺寸 -->
-            <x:Double x:Key="CardWidth">220</x:Double>
-            <x:Double x:Key="CardHeight">180</x:Double>
-            <x:Double x:Key="CardHeaderHeight">6</x:Double>
-
-            <!-- 半透明悬停叠加（规范 §15：轻微背景变化） -->
-            <SolidColorBrush x:Key="HoverOverlayBrush" Color="#14FFFFFF" />
-
-            <!-- 底部 Dock 卡片项：右侧留 12px 间距，悬停上浮 + 按压缩放反馈（规范 §15、§16、§59） -->
+            <Style x:Key="DockIconButtonStyle" TargetType="Button" BasedOn="{StaticResource GlassCapsuleButtonStyle}">
+                <Setter Property="Width" Value="32"/>
+                <Setter Property="Height" Value="32"/>
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="Padding" Value="6"/>
+                <Setter Property="CornerRadius" Value="16"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{ThemeResource TextPrimaryBrush}"/>
+            </Style>
+            <Style x:Key="PinboardTabStyle" TargetType="Button" BasedOn="{StaticResource GlassCapsuleButtonStyle}">
+                <Setter Property="Padding" Value="10,5"/>
+                <Setter Property="MinHeight" Value="28"/>
+                <Setter Property="CornerRadius" Value="14"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{ThemeResource TextPrimaryBrush}"/>
+            </Style>
             <Style x:Key="DockCardItemStyle" TargetType="ListViewItem">
-                <Setter Property="Padding" Value="0" />
-                <Setter Property="Margin" Value="0,2,12,2" />
-                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="VerticalContentAlignment" Value="Stretch" />
-                <Setter Property="MinWidth" Value="0" />
-                <Setter Property="MinHeight" Value="0" />
-                <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusCard}" />
+                <Setter Property="UseSystemFocusVisuals" Value="False"/>
+                <Setter Property="FocusVisualPrimaryThickness" Value="0"/>
+                <Setter Property="FocusVisualSecondaryThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Margin" Value="0,3,18,3"/>
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="MinHeight" Value="0"/>
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="VerticalContentAlignment" Value="Top"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="ListViewItem">
-                            <Grid RenderTransformOrigin="0.5,0.5">
-                                <Grid.RenderTransform>
-                                    <TransformGroup>
-                                        <ScaleTransform x:Name="PressScale" ScaleX="1" ScaleY="1" />
-                                        <TranslateTransform x:Name="HoverLift" Y="0" />
-                                    </TransformGroup>
-                                </Grid.RenderTransform>
-                                <!-- 卡片底色（半透明玻璃，透出 Acrylic 模糊）与描边 -->
-                                <Border
-                                    x:Name="ItemBackground"
-                                    CornerRadius="{StaticResource CornerRadiusCard}"
-                                    Background="{StaticResource SurfaceGlassBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1" />
-                                <!-- 悬停叠加层 -->
-                                <Border
-                                    x:Name="HoverBackground"
-                                    CornerRadius="{StaticResource CornerRadiusCard}"
-                                    Background="{StaticResource HoverOverlayBrush}"
-                                    Opacity="0" />
-                                <ContentPresenter
-                                    Content="{TemplateBinding Content}"
-                                    ContentTemplate="{TemplateBinding ContentTemplate}"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch" />
-                                <!-- 选中指示边框（强调色，规范 §16） -->
-                                <Border
-                                    x:Name="SelectedBorder"
-                                    CornerRadius="{StaticResource CornerRadiusCard}"
-                                    BorderBrush="{StaticResource AccentBrush}"
-                                    BorderThickness="2"
-                                    Opacity="0" />
+                            <Grid Width="208" Height="208" VerticalAlignment="Top">
+                                <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                <Border x:Name="HoverBorder" BorderBrush="{ThemeResource GlassRimBrush}" BorderThickness="1" CornerRadius="14" Opacity="0" IsHitTestVisible="False"/>
+                                <Border x:Name="SelectedBorder" BorderBrush="{ThemeResource GlassSelectionBrush}" BorderThickness="1.5" CornerRadius="14" Opacity="0" IsHitTestVisible="False"/>
                                 <VisualStateManager.VisualStateGroups>
                                     <VisualStateGroup x:Name="CommonStates">
-                                        <!-- 复位：从 Pressed 返回时缩放回到 1，从悬停返回时上浮归零 -->
-                                        <VisualState x:Name="Normal">
-                                            <Storyboard>
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleX"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleY"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="HoverLift"
-                                                    Storyboard.TargetProperty="Y"
-                                                    To="0"
-                                                    Duration="0:0:0.15" />
-                                            </Storyboard>
-                                        </VisualState>
-                                        <VisualState x:Name="PointerOver">
-                                            <Storyboard>
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="HoverLift"
-                                                    Storyboard.TargetProperty="Y"
-                                                    To="-4"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="HoverBackground"
-                                                    Storyboard.TargetProperty="Opacity"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleX"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleY"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                            </Storyboard>
-                                        </VisualState>
-                                        <VisualState x:Name="Selected">
-                                            <Storyboard>
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="SelectedBorder"
-                                                    Storyboard.TargetProperty="Opacity"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="HoverLift"
-                                                    Storyboard.TargetProperty="Y"
-                                                    To="0"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleX"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleY"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                            </Storyboard>
-                                        </VisualState>
-                                        <VisualState x:Name="PointerOverSelected">
-                                            <Storyboard>
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="HoverLift"
-                                                    Storyboard.TargetProperty="Y"
-                                                    To="-4"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="HoverBackground"
-                                                    Storyboard.TargetProperty="Opacity"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="SelectedBorder"
-                                                    Storyboard.TargetProperty="Opacity"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleX"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleY"
-                                                    To="1"
-                                                    Duration="0:0:0.15" />
-                                            </Storyboard>
-                                        </VisualState>
-                                        <!-- 按压：轻微缩放回弹（规范 §16） -->
-                                        <VisualState x:Name="Pressed">
-                                            <Storyboard>
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleX"
-                                                    To="0.97"
-                                                    Duration="0:0:0.08" />
-                                                <DoubleAnimation
-                                                    Storyboard.TargetName="PressScale"
-                                                    Storyboard.TargetProperty="ScaleY"
-                                                    To="0.97"
-                                                    Duration="0:0:0.08" />
-                                            </Storyboard>
-                                        </VisualState>
+                                        <VisualState x:Name="Normal"/>
+                                        <VisualState x:Name="PointerOver"><VisualState.Setters><Setter Target="HoverBorder.Opacity" Value="1"/></VisualState.Setters></VisualState>
+                                        <VisualState x:Name="Selected"><VisualState.Setters><Setter Target="SelectedBorder.Opacity" Value="1"/></VisualState.Setters></VisualState>
+                                        <VisualState x:Name="PointerOverSelected"><VisualState.Setters><Setter Target="SelectedBorder.Opacity" Value="1"/></VisualState.Setters></VisualState>
+                                        <VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="HoverBorder.Opacity" Value="1"/></VisualState.Setters></VisualState>
+                                    </VisualStateGroup>
+                                    <VisualStateGroup x:Name="FocusStates">
+                                        <VisualState x:Name="Unfocused"/>
+                                        <VisualState x:Name="PointerFocused"/>
+                                        <VisualState x:Name="Focused"><VisualState.Setters><Setter Target="SelectedBorder.Opacity" Value="1"/></VisualState.Setters></VisualState>
                                     </VisualStateGroup>
                                 </VisualStateManager.VisualStateGroups>
                             </Grid>

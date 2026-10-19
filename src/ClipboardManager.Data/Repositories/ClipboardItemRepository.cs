@@ -9,11 +9,11 @@ namespace ClipboardManager.Data;
 /// 剪贴板条目仓储：SQLite + Dapper 实现（规范 §16-§19）。
 /// 搜索委托 FTS5，短查询自动降级为 LIKE 兜底。
 /// </summary>
-public sealed class ClipboardItemRepository : IClipboardItemRepository
+public sealed partial class ClipboardItemRepository : IClipboardItemRepository, IWorkspaceRepository
 {
     private const string Columns =
         "id, type, text, html, rtf, image_path, thumbnail_path, file_paths, " +
-        "source_application, source_title, created_at, updated_at, hash, size, is_favorite, group_name, is_deleted";
+        "source_application, source_title, created_at, updated_at, hash, size, is_favorite, group_name, is_deleted, title, ocr_text";
 
     private readonly SqliteConnectionFactory _factory;
     private readonly ILogger<ClipboardItemRepository> _logger;
@@ -31,11 +31,11 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
             INSERT INTO clipboard_items
                 (type, text, html, rtf, image_path, thumbnail_path, file_paths,
                  source_application, source_title, created_at, updated_at, hash, size,
-                 is_favorite, group_name, is_deleted)
+                 is_favorite, group_name, is_deleted, title, ocr_text)
             VALUES
                 (@Type, @Text, @Html, @Rtf, @ImagePath, @ThumbnailPath, @FilePaths,
                  @SourceApplication, @SourceTitle, @CreatedAt, @UpdatedAt, @Hash, @Size,
-                 @IsFavorite, @GroupName, @IsDeleted);
+                 @IsFavorite, @GroupName, @IsDeleted, @Title, @OcrText);
             SELECT last_insert_rowid();
             """;
 
@@ -172,7 +172,7 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
 
     public async Task SetGroupAsync(long id, string? group, CancellationToken ct)
     {
-        const string sql = "UPDATE clipboard_items SET group_name = @group WHERE id = @id";
+        const string sql = "INSERT OR IGNORE INTO pinboards(name) SELECT @group WHERE @group IS NOT NULL; UPDATE clipboard_items SET group_name = @group WHERE id = @id";
         using var connection = _factory.CreateConnection();
         await connection.ExecuteAsync(
             new CommandDefinition(sql, new { id, group }, cancellationToken: ct));
@@ -181,8 +181,7 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
     public async Task<IReadOnlyList<string>> GetGroupNamesAsync(CancellationToken ct)
     {
         const string sql =
-            "SELECT DISTINCT group_name FROM clipboard_items " +
-            "WHERE is_deleted = 0 AND group_name IS NOT NULL ORDER BY group_name";
+            "SELECT name FROM pinboards ORDER BY position, name";
 
         using var connection = _factory.CreateConnection();
         var rows = await connection.QueryAsync<string>(
@@ -217,7 +216,7 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
     {
         // 收藏条目不参与过期清理，避免用户误丢（可后续加设置）。
         const string sql =
-            "DELETE FROM clipboard_items WHERE created_at < @cutoff AND is_favorite = 0";
+            "DELETE FROM clipboard_items WHERE created_at < @cutoff AND is_favorite = 0 AND group_name IS NULL";
         using var connection = _factory.CreateConnection();
         return await connection.ExecuteAsync(
             new CommandDefinition(sql, new { cutoff }, cancellationToken: ct));
@@ -228,7 +227,7 @@ public sealed class ClipboardItemRepository : IClipboardItemRepository
         const string sql =
             """
             DELETE FROM clipboard_items
-            WHERE is_favorite = 0 AND id IN (
+            WHERE is_favorite = 0 AND group_name IS NULL AND id IN (
                 SELECT id FROM clipboard_items
                 ORDER BY created_at DESC, id DESC
                 LIMIT -1 OFFSET @maxItems
