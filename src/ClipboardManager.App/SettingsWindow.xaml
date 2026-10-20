@@ -55,7 +55,7 @@
                     </ComboBox>
                 </StackPanel>
 
-                </StackPanel></Border><Border Background="{ThemeResource GlassCardBrush}" BorderBrush="{ThemeResource GlassRimBrush}" BorderThickness="1" CornerRadius="18" Padding="20"><StackPanel Spacing="16"><TextBlock Text="记录与粘贴" FontSize="18" FontWeight="SemiBold"/>
+                </StackPanel></Border><Border Background="{ThemeResource GlassCardBrush}" BorderBrush="{ThemeResource GlassRimBrush}" BorderThickness="1" CornerRadius="18" Padding="20"><StackPanel Spacing="16"><TextBlock Text="记录与复制" FontSize="18" FontWeight="SemiBold"/>
 <!-- 历史保留（规范 §40） -->
                 <StackPanel Spacing="6">
                     <TextBlock Text="历史保留" FontWeight="SemiBold" />
@@ -72,7 +72,7 @@
                 </StackPanel>
 
                 <!-- 去重（规范 §15） -->
-                <ToggleSwitch Header="默认粘贴为纯文本" OnContent="去除文字格式" OffContent="保留原始格式"
+                <ToggleSwitch Header="默认复制为纯文本" OnContent="去除文字格式" OffContent="保留原始格式"
                     IsOn="{x:Bind ViewModel.AlwaysPastePlainText, Mode=TwoWay}"/>
                 <ToggleSwitch
                     Header="重复处理"

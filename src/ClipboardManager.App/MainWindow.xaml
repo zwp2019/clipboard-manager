@@ -92,7 +92,7 @@
                     <ListView x:Name="HistoryList" Padding="20,0,0,8"
                         ItemsSource="{x:Bind ViewModel.Items}" SelectedItem="{x:Bind ViewModel.SelectedItem, Mode=TwoWay}"
                         SelectionMode="Extended" IsItemClickEnabled="False" DoubleTapped="HistoryList_DoubleTapped"
-                        KeyDown="HistoryList_KeyDown" SelectionChanged="HistoryList_SelectionChanged"
+                        SelectionChanged="HistoryList_SelectionChanged"
                         CanDragItems="True" DragItemsStarting="HistoryList_DragItemsStarting"
                         ScrollViewer.HorizontalScrollMode="Enabled" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
                         ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled"

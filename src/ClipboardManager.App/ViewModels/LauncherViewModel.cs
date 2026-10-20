@@ -12,7 +12,6 @@ public partial class LauncherViewModel : ObservableObject, IDisposable
     private const int PageSize = 80;
     private readonly IWorkspaceService _workspace;
     private readonly IHistoryService _history;
-    private readonly IQuickPasteService _paste;
     private readonly IClipboardWriter _writer;
     private readonly ISettingsService _settings;
     private readonly IImageTextService _ocr;
@@ -22,9 +21,8 @@ public partial class LauncherViewModel : ObservableObject, IDisposable
     private readonly ILogger<LauncherViewModel> _logger;
     private CancellationTokenSource? _queryCts;
     private ClipboardQuery _scope = new();
-    private nint _target;
     private readonly List<ClipboardItem> _queue = new();
-    private bool _pasteBusy;
+    private bool _copyBusy;
     private int _searchVersion;
     private int _nextOffset;
     public event Action<string, bool>? CopyFeedback;
@@ -35,20 +33,20 @@ public partial class LauncherViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string activeList = "全部历史";
     [ObservableProperty] private bool hasMore;
     [ObservableProperty] private bool isEmpty = true;
-    [ObservableProperty] private string queueLabel = "粘贴队列";
+    [ObservableProperty] private string queueLabel = "复制队列";
     [ObservableProperty] private bool isQueueView;
     [ObservableProperty] private ClipboardItemViewModel? selectedItem;
     public ObservableCollection<ClipboardItemViewModel> Items { get; } = new();
     public Visibility EmptyVisibility => IsEmpty ? Visibility.Visible : Visibility.Collapsed;
     public Visibility MoreVisibility => HasMore ? Visibility.Visible : Visibility.Collapsed;
-    public bool PastePlainTextOnce { get; set; }
+    public bool CopyPlainTextOnce { get; set; }
     public string? CurrentGroup => _scope.Group;
 
-    public LauncherViewModel(IWorkspaceService workspace, IHistoryService history, IQuickPasteService paste,
+    public LauncherViewModel(IWorkspaceService workspace, IHistoryService history,
         IClipboardWriter writer, ISettingsService settings, IImageTextService ocr, IDispatcher dispatcher,
         IDebouncer debouncer, CardAssetLoader assets, ILogger<LauncherViewModel> logger)
     {
-        _workspace = workspace; _history = history; _paste = paste; _writer = writer;
+        _workspace = workspace; _history = history; _writer = writer;
         _settings = settings; _ocr = ocr; _dispatcher = dispatcher; _debouncer = debouncer;
         _assets = assets; _logger = logger;
     }
@@ -63,7 +61,6 @@ public partial class LauncherViewModel : ObservableObject, IDisposable
         _debouncer.Debounce(() => _dispatcher.Post(() => { if (version == _searchVersion) _ = RefreshAsync(); }), 200);
     }
 
-    public void SetPasteTarget(nint handle) => _target = handle;
     public Task RefreshAsync() { _searchVersion++; return LoadAsync(false); }
     public Task LoadMoreAsync() => HasMore && !IsSearching ? LoadAsync(true) : Task.CompletedTask;
     public Task SearchNowAsync(string? query = null)
@@ -163,28 +160,32 @@ public partial class LauncherViewModel : ObservableObject, IDisposable
         }
         await RefreshAsync();
     }
-    public async Task<bool> PasteCurrentAsync(bool plainText = false)
+    public async Task<bool> CopyItemAsync(ClipboardItem? item, bool plainText = false)
     {
-        if (SelectedItem is null || _pasteBusy) return false;
-        _pasteBusy = true;
+        if (item is null || _copyBusy) return false;
+        _copyBusy = true;
         try
         {
-            var item = SelectedItem.Item;
-            var plain = plainText || PastePlainTextOnce || _settings.Current.AlwaysPastePlainText;
-            PastePlainTextOnce = false;
+            var plain = plainText || CopyPlainTextOnce || _settings.Current.AlwaysPastePlainText;
+            CopyPlainTextOnce = false;
             if (plain && item.Text is not null) item = new ClipboardItem { Id = item.Id, Type = ClipboardType.Text, Text = item.Text };
-            var success = await _paste.PasteAsync(item, _target, CancellationToken.None);
-            if (!success) StatusText = "粘贴失败，可用 Ctrl+C 复制后手动粘贴";
-            else if (IsQueueView)
+            await _writer.WriteAsync(item, Guid.NewGuid().ToString("N"), CancellationToken.None);
+            StatusText = "已复制到剪贴板";
+            if (IsQueueView)
             {
                 _queue.RemoveAll(i => i.Id == item.Id); UpdateQueueLabel();
                 await RefreshAsync();
             }
-            return success;
+            return true;
         }
-        finally { _pasteBusy = false; }
+        catch (Exception ex)
+        {
+            LogOperationFailed(_logger, ex);
+            StatusText = "复制失败，请重试";
+            return false;
+        }
+        finally { _copyBusy = false; }
     }
-    public async Task PasteSelectedAsync() => await PasteCurrentAsync();
     public async Task CopySelectedAsync()
     {
         if (SelectedItem is null) return;
@@ -211,12 +212,12 @@ public partial class LauncherViewModel : ObservableObject, IDisposable
     {
         foreach (var item in items)
             if (!_queue.Any(i => i.Id == item.Item.Id)) _queue.Add(item.Item);
-        UpdateQueueLabel(); StatusText = "已加入队列 · 打开队列后按 Enter 逐项粘贴";
+        UpdateQueueLabel(); StatusText = "已加入队列 · 打开队列后按 Enter 逐项复制";
     }
-    public Task ShowQueueAsync() { IsQueueView = true; ActiveList = "粘贴队列"; return RefreshAsync(); }
+    public Task ShowQueueAsync() { IsQueueView = true; ActiveList = "复制队列"; return RefreshAsync(); }
     public async Task ReverseQueueAsync() { _queue.Reverse(); if (IsQueueView) await RefreshAsync(); }
     public async Task ClearQueueAsync() { _queue.Clear(); UpdateQueueLabel(); if (IsQueueView) await RefreshAsync(); }
-    private void UpdateQueueLabel() => QueueLabel = _queue.Count == 0 ? "粘贴队列" : $"队列 · {_queue.Count}";
+    private void UpdateQueueLabel() => QueueLabel = _queue.Count == 0 ? "复制队列" : $"队列 · {_queue.Count}";
     public void Pause(int minutes)
     {
         _settings.Update(s => { s.PauseMonitoring = minutes != 0; s.PauseUntil = minutes > 0 ? DateTime.Now.AddMinutes(minutes) : null; });

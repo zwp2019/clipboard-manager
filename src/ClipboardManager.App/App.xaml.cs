@@ -22,11 +22,10 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
     private Mutex? _singleInstanceMutex;
     private MainWindow? _mainWindow;
     private SettingsWindow? _settingsWindow;
-    private IQuickPasteService? _quickPaste;
     private ILogger<App>? _logger;
     private DispatcherQueue? _dispatcherQueue;
 
-    private nint _previousForegroundWindow;
+    private bool _copyInProgress;
 
     public static FrameworkElement? RootElement { get; private set; }
 
@@ -76,7 +75,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
             // 主窗口
             _mainWindow = _services.GetRequiredService<MainWindow>();
             _mainWindow.HideRequested += (_, _) => HideLauncher();
-            _mainWindow.PasteRequested += (_, _) => _ = PasteAndHideAsync();
+            _mainWindow.CopyRequested += (_, _) => _ = CopyAndHideAsync();
             _mainWindow.SettingsRequested += (_, _) => ShowSettingsWindow();
             _settingsWindow = _services.GetRequiredService<SettingsWindow>();
 
@@ -125,11 +124,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
             var autoStart = _services.GetRequiredService<IAutoStartService>();
             if (!IsPreview) settingsService.Update(s => s.AutoStart = autoStart.IsEnabled());
 
-            _quickPaste = _services.GetRequiredService<IQuickPasteService>();
-
             if (IsPreview) await SeedPreviewAsync();
-            _previousForegroundWindow = ProcessHelper.GetForegroundWindow();
-            _mainWindow.ViewModel.SetPasteTarget(_previousForegroundWindow);
 
             // 启动即以底部横幅形态显示（Paste 风格 Dock 栏）。
             _mainWindow.PositionNearCursor();
@@ -244,6 +239,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
 
     private void ShowLauncher()
     {
+        if (_copyInProgress) return;
         if (_mainWindow?.HasOpenDialog == true) return;
         if (_mainWindow is null)
         {
@@ -257,8 +253,6 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
             return;
         }
 
-        _previousForegroundWindow = ProcessHelper.GetForegroundWindow();
-        _mainWindow.ViewModel.SetPasteTarget(_previousForegroundWindow);
         _mainWindow.PositionNearCursor();
         _mainWindow.ShowWindow();
         _ = _mainWindow.ViewModel.RefreshAsync();
@@ -266,12 +260,35 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
 
     private void HideLauncher()
     {
-        _mainWindow?.HideWindow();
+        if (_mainWindow is not null) _ = _mainWindow.HideWindowAsync();
     }
 
-    private async Task PasteAndHideAsync()
+    private async Task CopyAndHideAsync()
     {
-        if (await _mainWindow!.ViewModel.PasteCurrentAsync()) HideLauncher();
+        if (_mainWindow?.ViewModel.SelectedItem is null || _copyInProgress) return;
+        var item = _mainWindow.ViewModel.SelectedItem.Item;
+        var plainText = _mainWindow.ViewModel.CopyPlainTextOnce;
+        _mainWindow.ViewModel.CopyPlainTextOnce = false;
+        _copyInProgress = true;
+        try
+        {
+            await _mainWindow.HideWindowAsync();
+            var success = await _mainWindow.ViewModel.CopyItemAsync(item, plainText);
+            _services?.GetRequiredService<INotificationService>().ShowCopyResult(item, success);
+            if (!success)
+            {
+                Log.Logger.Warning("Copy request did not complete successfully");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Logger.Error(ex, "Copy request failed unexpectedly");
+            _services?.GetRequiredService<INotificationService>().ShowCopyResult(item, false);
+        }
+        finally
+        {
+            _copyInProgress = false;
+        }
     }
 
     private void ShowSettingsWindow()

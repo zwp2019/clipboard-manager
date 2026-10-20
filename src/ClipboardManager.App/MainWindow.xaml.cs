@@ -40,11 +40,11 @@ public sealed partial class MainWindow : Window, IDisposable
     /// <summary>窗口当前是否可见（用于快捷键切换显隐）。</summary>
     public bool IsVisible => NativeMethods.IsWindowVisible(_hwnd);
 
-    /// <summary>请求隐藏（Esc / 粘贴后）。</summary>
+    /// <summary>请求隐藏（Esc / 复制后）。</summary>
     public event EventHandler? HideRequested;
 
-    /// <summary>请求快速粘贴（Enter / 双击）。</summary>
-    public event EventHandler? PasteRequested;
+    /// <summary>请求复制当前卡片并收起（Enter / Ctrl+C / 双击）。</summary>
+    public event EventHandler? CopyRequested;
 
     /// <summary>请求打开设置窗口。</summary>
     public event EventHandler? SettingsRequested;
@@ -69,6 +69,10 @@ public sealed partial class MainWindow : Window, IDisposable
 
         // 全局键盘导航：左右箭头在卡片间移动（handledEventsToo 以覆盖 TextBox 已消费的光标键）。
         RootGrid.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnGlobalKeyDown), true);
+        // Handle Escape throughout the panel, and card confirmation before
+        // ListViewItem can consume Enter.
+        RootGrid.PreviewKeyDown += OnPreviewKeyDown;
+        HistoryList.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(HistoryList_KeyDown), true);
         RootGrid.CharacterReceived += RootGrid_CharacterReceived;
         TrackFlyout(OverflowButton.Flyout);
 
@@ -78,6 +82,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
     private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
     {
+        if (_dismissTask is not null) return;
         if (args.WindowActivationState == WindowActivationState.Deactivated && !IsInteractionOpen && !App.IsPreview)
         {
             _outsideClickDetector.Stop();
@@ -225,6 +230,7 @@ public sealed partial class MainWindow : Window, IDisposable
     /// <summary>释放 Acrylic 毛玻璃控制器（应用退出时由 App 调用）。</summary>
     public void Dispose()
     {
+        CancelDismissAnimation();
         ViewModel.CopyFeedback -= ShowCopyFeedback;
         _copyNoticeTimer?.Stop();
         _acrylicController?.Dispose();
@@ -283,6 +289,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
     public void ShowWindow()
     {
+        CancelDismissAnimation();
         Activate();
         if (_searchOpen) SearchBox.Focus(FocusState.Programmatic);
         else HistoryList.Focus(FocusState.Programmatic);
@@ -290,6 +297,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
     public void HideWindow()
     {
+        CancelDismissAnimation();
         _copyNoticeTimer?.Stop();
         CopyNotice.IsOpen = false;
         _outsideClickDetector.Stop();

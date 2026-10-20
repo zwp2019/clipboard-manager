@@ -41,8 +41,6 @@ public static class AppServices
         services.AddSingleton<IHotkeyService, GlobalHotkeyService>();
         services.AddSingleton<TrayIconService>();
         services.AddSingleton<ITrayService>(sp => sp.GetRequiredService<TrayIconService>());
-        services.AddSingleton<IWindowActivator, WindowActivator>();
-        services.AddSingleton<IInputSimulator, InputSimulator>();
         services.AddSingleton<IAutoStartService, AutoStartService>();
         services.AddSingleton<INotificationService, OverlayToastService>();
 
@@ -53,7 +51,6 @@ public static class AppServices
         services.AddSingleton<ClipboardPipelineService>();
         services.AddSingleton<ISearchService, SearchService>();
         services.AddSingleton<IHistoryService, HistoryService>();
-        services.AddSingleton<IQuickPasteService, QuickPasteService>();
         services.AddSingleton<IHistoryCleanupService, HistoryCleanupService>();
 
         // ---- App（UI 层）----

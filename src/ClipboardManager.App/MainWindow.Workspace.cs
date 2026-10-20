@@ -37,7 +37,7 @@ public sealed partial class MainWindow
     private string _highlighted = "剪贴板";
     private bool _searchOpen;
     private int _openFlyouts;
-    private bool IsInteractionOpen => _dialogOpen || _openFlyouts > 0;
+    private bool IsInteractionOpen => _dialogOpen || _openFlyouts > 0 || _dismissTask is not null;
     private IReadOnlyList<Pinboard> _boards = Array.Empty<Pinboard>();
     private static readonly string[] DateLabels = ["不限时间", "今天", "最近 7 天", "最近 30 天"];
     private static readonly string[] TypeLabels = ["全部类型", "文本", "链接", "图片", "代码", "文件", "HTML", "富文本"];
@@ -119,13 +119,32 @@ public sealed partial class MainWindow
             if (!IsInteractionOpen && IsVisible && !App.IsPreview) _outsideClickDetector.Start(_hwnd);
         }
     }
+    private void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (IsInteractionOpen) return;
+        // Escape belongs to the panel, regardless of whether a card, search
+        // field, navigation tab or toolbar button currently has focus.
+        if (e.Key == VirtualKey.Escape)
+        {
+            e.Handled = true;
+            if (_searchOpen) CloseSearch();
+            else HideRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+        if (e.Key != VirtualKey.Enter) return;
+        var focused = FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+        // TextBox must keep its native IME composition behavior. Search has its
+        // own Enter handler after composition finishes.
+        if (focused is TextBox) return;
+        CopyFromKeyboard(e, KeyDown(VirtualKey.Shift));
+    }
     private void OnGlobalKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (IsInteractionOpen || e.Handled) return;
         if (KeyDown(VirtualKey.Control) && e.Key >= VirtualKey.Number1 && e.Key <= VirtualKey.Number9)
         {
             var index = (int)e.Key - (int)VirtualKey.Number1;
-            if (index < ViewModel.Items.Count) { ViewModel.SelectedItem = ViewModel.Items[index]; PasteRequested?.Invoke(this, EventArgs.Empty); }
+            if (index < ViewModel.Items.Count) { ViewModel.SelectedItem = ViewModel.Items[index]; CopyRequested?.Invoke(this, EventArgs.Empty); }
             e.Handled = true; return;
         }
         if (KeyDown(VirtualKey.Control) && e.Key == VirtualKey.F)
@@ -139,7 +158,7 @@ public sealed partial class MainWindow
             if (FocusManager.GetFocusedElement(RootGrid.XamlRoot) is TextBox { Text.Length: > 0 } && e.Key is VirtualKey.Left or VirtualKey.Right) return;
             var item = ViewModel.MoveSelection(e.Key is VirtualKey.Left or VirtualKey.Up ? -1 : 1);
             if (item is not null) HistoryList.ScrollIntoView(item);
-            if (e.Key is VirtualKey.Down or VirtualKey.Up) HistoryList.Focus(FocusState.Programmatic);
+            HistoryList.Focus(FocusState.Programmatic);
             e.Handled = true;
         }
     }
@@ -149,34 +168,41 @@ public sealed partial class MainWindow
         if (e.Key == VirtualKey.Enter)
         {
             e.Handled = true;
-            if (SearchBox.Text.Length > 0 && !KeyDown(VirtualKey.Shift))
-                _ = SafeAsync(async () => { await ViewModel.SearchNowAsync(); HistoryList.Focus(FocusState.Programmatic); });
-            else { ViewModel.PastePlainTextOnce = KeyDown(VirtualKey.Shift); PasteRequested?.Invoke(this, EventArgs.Empty); }
+            var plainText = KeyDown(VirtualKey.Shift);
+            _ = SafeAsync(async () =>
+            {
+                await ViewModel.SearchNowAsync();
+                if (ViewModel.SelectedItem is null) return;
+                ViewModel.CopyPlainTextOnce = plainText;
+                CopyRequested?.Invoke(this, EventArgs.Empty);
+            });
         }
-        else if (e.Key == VirtualKey.Escape) { CloseSearch(); e.Handled = true; }
     }
     private void HistoryList_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (_dialogOpen) return;
+        if (IsInteractionOpen) return;
         switch (e.Key)
         {
-            case VirtualKey.Enter:
-                ViewModel.PastePlainTextOnce = KeyDown(VirtualKey.Shift); PasteRequested?.Invoke(this, EventArgs.Empty); break;
-            case VirtualKey.Escape:
-                if (_searchOpen) CloseSearch(); else HideRequested?.Invoke(this, EventArgs.Empty); break;
             case VirtualKey.Space: _ = SafeAsync(() => ShowDetailsAsync(ViewModel.SelectedItem, false)); break;
             case VirtualKey.Delete: _ = SafeAsync(DeleteSelectionAsync); break;
             case VirtualKey.D when KeyDown(VirtualKey.Control): _ = SafeAsync(() => ViewModel.BatchAsync(Selection(), "favorite")); break;
             case VirtualKey.G when KeyDown(VirtualKey.Control): _ = SafeAsync(ShowGroupDialogAsync); break;
             case VirtualKey.A when KeyDown(VirtualKey.Control): HistoryList.SelectAll(); break;
-            case VirtualKey.C when KeyDown(VirtualKey.Control): _ = SafeAsync(ViewModel.CopySelectedAsync); break;
+            case VirtualKey.C when KeyDown(VirtualKey.Control): CopyFromKeyboard(e, false); return;
             default: return;
         }
         e.Handled = true;
     }
+    private void CopyFromKeyboard(KeyRoutedEventArgs e, bool plainText)
+    {
+        e.Handled = true;
+        if (ViewModel.SelectedItem is null) return;
+        ViewModel.CopyPlainTextOnce = plainText;
+        CopyRequested?.Invoke(this, EventArgs.Empty);
+    }
     private void HistoryList_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
-        if (!_dialogOpen && ViewModel.SelectedItem is not null) { PasteRequested?.Invoke(this, EventArgs.Empty); e.Handled = true; }
+        if (!_dialogOpen && ViewModel.SelectedItem is not null) { CopyRequested?.Invoke(this, EventArgs.Empty); e.Handled = true; }
     }
     private void HistoryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -328,15 +354,15 @@ public sealed partial class MainWindow
     {
         ViewModel.SelectedItem = item;
         var menu = new MenuFlyout();
-        AddMenu(menu, "粘贴   Enter", () => { PasteRequested?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; });
-        AddMenu(menu, "粘贴为纯文本   Shift+Enter", () => { ViewModel.PastePlainTextOnce = true; PasteRequested?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; });
-        AddMenu(menu, "复制   Ctrl+C", ViewModel.CopySelectedAsync);
+        AddMenu(menu, "复制并收起   Enter", () => { CopyRequested?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; });
+        AddMenu(menu, "复制为纯文本   Shift+Enter", () => { ViewModel.CopyPlainTextOnce = true; CopyRequested?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; });
+        AddMenu(menu, "仅复制", ViewModel.CopySelectedAsync);
         menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, "预览   Space", () => ShowDetailsAsync(item, false));
         AddMenu(menu, "编辑与重命名   Ctrl+E", () => ShowDetailsAsync(item, true));
         AddMenu(menu, item.IsFavorite ? "取消收藏" : "收藏", () => ViewModel.ToggleFavoriteAsync(item));
         AddMenu(menu, "移入收藏板", ShowGroupDialogAsync);
-        AddMenu(menu, "加入粘贴队列", () => { ViewModel.AddToQueue(new[] { item }); return Task.CompletedTask; });
+        AddMenu(menu, "加入复制队列", () => { ViewModel.AddToQueue(new[] { item }); return Task.CompletedTask; });
         menu.Items.Add(new MenuFlyoutSeparator());
         AddMenu(menu, "删除", () => ViewModel.DeleteAsync(item));
         TrackFlyout(menu);
@@ -349,7 +375,7 @@ public sealed partial class MainWindow
         if (parts.Length == 2) entry.KeyboardAcceleratorTextOverride = parts[1];
         var glyph = parts[0] switch
         {
-            "粘贴" => "\uE77F", "复制" => "\uE8C8", "预览" => "\uE890", "编辑与重命名" => "\uE70F",
+            "复制并收起" => "\uE77F", "仅复制" => "\uE8C8", "预览" => "\uE890", "编辑与重命名" => "\uE70F",
             "收藏" => "\uE735", "取消收藏" => "\uE734", "移入收藏板" => "\uE8B7", "删除" => "\uE74D", _ => null,
         };
         if (glyph is not null) entry.Icon = new FontIcon { Glyph = glyph, FontSize = 14 };
@@ -436,7 +462,7 @@ public sealed partial class MainWindow
         await ShowDialogAsync(new ContentDialog
         {
             Title = "快捷键",
-            Content = "直接输入 / Ctrl+F　搜索\n← / →　选择内容\nEnter　粘贴\nShift+Enter　粘贴为纯文本\nCtrl+1…9　粘贴对应内容\nSpace　完整预览\nCtrl+E　编辑与重命名\nCtrl+N　新建常用文本\nCtrl+C　复制\nCtrl+D　收藏所选\nCtrl+G　移入收藏板\nCtrl+A　选择已加载的全部内容\nCtrl / Shift+单击　多选\nDelete　删除所选\nEsc　退出搜索 / 收起窗口",
+            Content = "直接输入 / Ctrl+F　搜索\n← / →　选择内容\nEnter　复制并收起\nShift+Enter　复制为纯文本\nCtrl+1…9　复制对应内容\nSpace　完整预览\nCtrl+E　编辑与重命名\nCtrl+N　新建常用文本\nCtrl+C　复制并收起\nCtrl+D　收藏所选\nCtrl+G　移入收藏板\nCtrl+A　选择已加载的全部内容\nCtrl / Shift+单击　多选\nDelete　删除所选\nEsc　退出搜索 / 收起窗口",
             CloseButtonText = "知道了",
         });
     });
