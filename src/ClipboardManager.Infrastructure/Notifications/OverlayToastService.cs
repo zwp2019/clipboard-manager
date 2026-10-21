@@ -17,7 +17,7 @@ namespace ClipboardManager.Infrastructure.Notifications;
 public sealed partial class OverlayToastService : INotificationService, IDisposable
 {
     private const int MaxPreviewLength = 80;
-    private const int VisibleMilliseconds = 1900;
+    private const int VisibleMilliseconds = 1200;
     private const int FadeStepMilliseconds = 22;
     private const byte MaxAlpha = 255;
 
