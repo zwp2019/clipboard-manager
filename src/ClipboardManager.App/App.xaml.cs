@@ -129,7 +129,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
             // 启动即以底部横幅形态显示（Paste 风格 Dock 栏）。
             _mainWindow.PositionNearCursor();
             _mainWindow.ShowWindow();
-            _ = _mainWindow.ViewModel.RefreshAsync();
+            _ = _mainWindow.RefreshForOpeningAsync();
             RootElement = _mainWindow.Content as FrameworkElement;
 
             LogMessages.Started(_logger);
@@ -255,7 +255,7 @@ public partial class App : Microsoft.UI.Xaml.Application, IDisposable
 
         _mainWindow.PositionNearCursor();
         _mainWindow.ShowWindow();
-        _ = _mainWindow.ViewModel.RefreshAsync();
+        _ = _mainWindow.RefreshForOpeningAsync();
     }
 
     private void HideLauncher()

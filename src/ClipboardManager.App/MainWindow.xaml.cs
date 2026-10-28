@@ -295,6 +295,14 @@ public sealed partial class MainWindow : Window, IDisposable
         else HistoryList.Focus(FocusState.Programmatic);
     }
 
+    public async Task RefreshForOpeningAsync()
+    {
+        await ViewModel.RefreshAsync();
+        var first = ViewModel.Items.FirstOrDefault();
+        ViewModel.SelectedItem = first;
+        if (first is not null) HistoryList.ScrollIntoView(first);
+    }
+
     public void HideWindow()
     {
         CancelDismissAnimation();
