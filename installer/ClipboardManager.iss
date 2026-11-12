@@ -4,11 +4,11 @@
 ;      dotnet publish src\ClipboardManager.App\ClipboardManager.App.csproj -c Release -r win-x64 --self-contained true
 ;   2. 用 Inno Setup Compiler（ISCC.exe）编译本脚本：
 ;      ISCC.exe installer\ClipboardManager.iss
-;   3. 生成安装包：installer\Output\剪贴板管理器Setup-1.0.0.exe
+;   3. 生成安装包：installer\Output\剪贴板管理器Setup-1.0.3.exe
 
 #define MyAppName "剪贴板管理器"
 #define MyAppNameEn "ClipboardManager"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.3"
 #define MyAppExeName "ClipboardManager.App.exe"
 #define MyAppPublisher "ClipboardManager"
 #define PublishDir "..\src\ClipboardManager.App\bin\Release\net10.0-windows10.0.19041.0\win-x64"

@@ -1,0 +1,70 @@
+name: Release
+
+# 推送版本 tag（如 1.0.3）时自动构建 Windows 安装包并创建 GitHub Release
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify tag matches installer version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $line = Select-String -Path installer/ClipboardManager.iss -Pattern '#define MyAppVersion "(.+)"'
+          $version = $line.Matches[0].Groups[1].Value
+          if ($tag -ne $version) {
+            Write-Error "Tag '$tag' does not match MyAppVersion '$version' in installer/ClipboardManager.iss"
+            exit 1
+          }
+
+      - name: Publish application
+        shell: pwsh
+        run: dotnet publish src/ClipboardManager.App/ClipboardManager.App.csproj -c Release -r win-x64 --self-contained true
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\ClipboardManager.iss'
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: installer/Output/*.exe
+
+  release:
+    needs: build-installer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/*.exe \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
