@@ -32,9 +32,13 @@ jobs:
             exit 1
           }
 
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # WinUI/WindowsAppSDK 的 PRI 打包任务依赖 MSBuild，dotnet publish 会失败，因此使用 msbuild
       - name: Publish application
         shell: pwsh
-        run: dotnet publish src/ClipboardManager.App/ClipboardManager.App.csproj -c Release -r win-x64 --self-contained true
+        run: msbuild src/ClipboardManager.App/ClipboardManager.App.csproj /restore /t:Publish /p:Configuration=Release "/p:PublishDir=bin\Release\net10.0-windows10.0.19041.0\win-x64\"
 
       - name: Install Inno Setup
         shell: pwsh
