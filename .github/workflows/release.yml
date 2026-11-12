@@ -44,6 +44,11 @@ jobs:
         shell: pwsh
         run: choco install innosetup --no-progress -y
 
+      # Inno Setup 默认不带简体中文语言包，从社区译文仓库下载到 Languages 目录
+      - name: Install Chinese Simplified language file
+        shell: pwsh
+        run: Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/kira-96/Inno-Setup-Chinese-Simplified-Translation/main/ChineseSimplified.isl' -OutFile 'C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl'
+
       - name: Build installer
         shell: pwsh
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\ClipboardManager.iss'
